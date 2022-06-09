@@ -46,6 +46,9 @@ def create_C_file(library_name: str, function_name: str, params: list):
 def create_binary(library_name: str):
     os.system(f"gcc -o {C_FILE_NAME} {C_FILE_NAME}.c {library_name}.a")
 
+def symbolically_execute(function_name: str, params: list):
+    proj = angr.Project(f'./{C_FILE_NAME}')
+
 def main():
     args = parseArguments()
     
@@ -63,6 +66,8 @@ def main():
 
     create_C_file(library_name=library_name, function_name=function_name, params=params)
     create_binary(library_name=library_name)
+    symbolically_execute(function_name=function_name, params=params)
+
 
 if __name__ == '__main__':
     main()
