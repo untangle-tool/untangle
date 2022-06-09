@@ -17,7 +17,7 @@ def parseArguments():
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('library_name', help="Name of the library containing the function.")
     parser.add_argument('function_name', help="Name of the function containing the vulnerable function call.")
-    parser.add_argument('-p', '--parameter', action='append', nargs=3, metavar=('param_name', 'param_type', 'param_size'), help="Name and size of the parameter(s) of the function.")
+    parser.add_argument('-p', '--parameter', action='append', nargs=3, metavar=('param_name', 'param_type', 'param_size'), help="Name, type and size of the parameter(s) of the function.")
     parser.add_argument('target_fn_name', help="Name of the target function to be reached through symbolical execution.")
 
     return vars(parser.parse_args())
