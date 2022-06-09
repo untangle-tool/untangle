@@ -24,24 +24,34 @@ def parseArguments():
 
 def create_C_file(library_name: str, function_name: str, params: list):
     """ Function that creates a C file (from a template) that links the specified library and calls the specified function. """
-    template = f"#include \"{library_name}.h\"\n"
-    template += "int main(){\n"
+    code = f"#include \"{library_name}.h\"\n"
+    code += "#include <stdio.h>\n"
+    code += "#include <stdlib.h>\n"
+    code += "int main(int argc, char ** argv){\n"
 
-    for param in params:
-        template += f"\t{param[1]} {param[0]};\n"
+    for i, param in enumerate(params, start=1):
+        if param[1] == "char":
+            code += f"\t{param[1]} {param[0]} = *argv[{i}];\n"
+        elif param[1] == "char*":
+            code += f"\t{param[1]} {param[0]} = argv[{i}];\n"
+        elif param[1] == "float":
+            code += f"\t{param[1]} {param[0]} = atof(argv[{i}]);\n"
+        else:
+            code += f"\t{param[1]} {param[0]} = atoi(argv[{i}]);\n"
     
-    template += f"\t{function_name}("
+    code += f"\t{function_name}("
     for param in params:
-        template += f"{param[0]}, "
+        code += f"{param[0]}, "
     
     if len(params) != 0:
-        template = template[:-2] 
+        # If the function has one or more parameters, truncate the last ", ".
+        code = code[:-2] 
     
-    template += ");\n"
-    template += "\treturn 0;\n}"
+    code += ");\n"
+    code += "\treturn 0;\n}"
     
     with open(C_FILE_NAME + ".c", "w") as f:
-        f.write(template)
+        f.write(code)
 
 def create_binary(library_name: str):
     os.system(f"gcc -o {C_FILE_NAME} {C_FILE_NAME}.c {library_name}.a")
