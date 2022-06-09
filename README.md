@@ -23,3 +23,20 @@ Then, start the script by passing the following arguments:
 * \[Optional\] function parameters, in the form `-p param_name param_type param_size`
 
 The type of the parameter is needed to declare it in the created C file (cannot infer the file type only from the size).
+To print the help message, simply run the script with the -h flag set:
+```
+$ python main.py -h
+usage: main.py [-h] [-p param_name param_type param_size] library_name function_name target_fn_name
+
+Symbolic Execution tool to find the values that need to be passed to parameters to get to a vulnerable function call.
+
+positional arguments:
+  library_name          Name of the library containing the function.
+  function_name         Name of the function containing the vulnerable function call.
+  target_fn_name        Name of the target function to be reached through symbolical execution.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -p param_name param_type param_size, --parameter param_name param_type param_size
+                        Name, type and size of the parameter(s) of the function. Pointers should be specified with type 'ptr'.
+```
