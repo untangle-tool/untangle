@@ -58,7 +58,7 @@ def create_binary(library_name: str):
     os.system(f"gcc -o {C_FILE_NAME} {C_FILE_NAME}.c {library_name}.a")
 
 def symbolically_execute(target_func: str, params: list):
-    
+    """ Execute the binary with angr and search a path to the target function. Then, print the values of the parameters. """
     args = [f'./{C_FILE_NAME}']
     for param in params:
         args.append(claripy.BVS(param[0], param[2]))
