@@ -2,6 +2,7 @@
 
 import angr
 import argparse
+import claripy
 import os
 import sys
 
@@ -38,7 +39,7 @@ def create_C_file(library_name: str, function_name: str, params: list):
             code += f"\t{param[1]} {param[0]} = atof(argv[{i}]);\n"
         else:
             code += f"\t{param[1]} {param[0]} = atoi(argv[{i}]);\n"
-    
+
     code += f"\t{function_name}("
     for param in params:
         code += f"{param[0]}, "
@@ -56,8 +57,25 @@ def create_C_file(library_name: str, function_name: str, params: list):
 def create_binary(library_name: str):
     os.system(f"gcc -o {C_FILE_NAME} {C_FILE_NAME}.c {library_name}.a")
 
-def symbolically_execute(function_name: str, params: list):
+def symbolically_execute(target_func: str, params: list):
+    
+    args = [f'./{C_FILE_NAME}']
+    for param in params:
+        args.append(claripy.BVS(param[0], param[2]))
+
     proj = angr.Project(f'./{C_FILE_NAME}')
+    target = target_func
+    target_sym = proj.loader.find_symbol(target)
+
+    state = proj.factory.entry_state(args=args)
+    simgr = proj.factory.simulation_manager(state)
+
+    simgr.explore(find=target_sym.rebased_addr)
+
+    if len(simgr.found) > 0:
+        found = simgr.found[0]
+        for arg in args[1:]:
+            print(found.solver.eval(arg, cast_to=bytes))
 
 def main():
     args = parseArguments()
@@ -76,8 +94,7 @@ def main():
 
     create_C_file(library_name=library_name, function_name=function_name, params=params)
     create_binary(library_name=library_name)
-    symbolically_execute(function_name=function_name, params=params)
-
+    symbolically_execute(target_func=target_fn_name, params=params)
 
 if __name__ == '__main__':
     main()
