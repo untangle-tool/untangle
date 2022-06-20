@@ -74,8 +74,8 @@ def symbolically_execute(target_func: str, params: list):
 
     if len(simgr.found) > 0:
         found = simgr.found[0]
-        for arg in args[1:]:
-            print(found.solver.eval(arg, cast_to=bytes))
+        for i, arg in enumerate(args[1:]):
+            print(f"{params[i][0]} {found.solver.eval(arg, cast_to=bytes)}")
 
 def main():
     args = parseArguments()
