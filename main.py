@@ -6,6 +6,7 @@ import claripy
 import os
 import sys
 
+from variable import Variable
 C_FILE_NAME = "temp"
 
 def parseArguments():
@@ -23,7 +24,7 @@ def parseArguments():
 
     return vars(parser.parse_args())
 
-def create_C_file(library_name: str, function_name: str, params: list):
+def create_C_file(library_name: str, function_name: str, params: list[Variable]):
     """ Function that creates a C file (from a template) that links the specified library and calls the specified function. """
     code = f"#include \"{library_name}.h\"\n"
     code += "#include <stdio.h>\n"
@@ -44,7 +45,7 @@ def create_C_file(library_name: str, function_name: str, params: list):
 
     code += f"\t{function_name}("
     for param in params:
-        code += f"{param[0]}, "
+        code += f"{param.name}, "
     
     if len(params) != 0:
         # If the function has one or more parameters, truncate the last ", ".
@@ -59,11 +60,11 @@ def create_C_file(library_name: str, function_name: str, params: list):
 def create_binary(library_name: str):
     os.system(f"gcc -o {C_FILE_NAME} {C_FILE_NAME}.c {library_name}.a")
 
-def symbolically_execute(target_func: str, params: list):
+def symbolically_execute(target_func: str, params: list[Variable], global_vars: list[Variable]):
     """ Execute the binary with angr and search a path to the target function. Then, print the values of the parameters. """
     args = [f'./{C_FILE_NAME}']
     for param in params:
-        args.append(claripy.BVS(param[0], param[2]))
+        args.append(claripy.BVS(param.name, param.size))
 
     proj = angr.Project(f'./{C_FILE_NAME}')
     target = target_func
@@ -76,8 +77,9 @@ def symbolically_execute(target_func: str, params: list):
 
     if len(simgr.found) > 0:
         found = simgr.found[0]
+        print("Values of the parameters:")
         for i, arg in enumerate(args[1:]):
-            print(f"{params[i][0]} {found.solver.eval(arg, cast_to=bytes)}")
+            print(f"{params[i].name} = {found.solver.eval(arg, cast_to=bytes).decode()}")
 
 def main():
     args = parseArguments()
@@ -89,7 +91,7 @@ def main():
     if args['parameter']:
         for p in args['parameter']:
             try:
-                params.append([p[0], p[1], int(p[2])])
+                params.append(Variable(p[0], p[1], int(p[2])))
             except ValueError:
                 print("The size should be an integer.")
                 sys.exit(0)
