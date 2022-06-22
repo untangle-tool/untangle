@@ -8,6 +8,7 @@ import sys
 
 from variable import Variable
 C_FILE_NAME = "temp"
+BASE_ADDR = 0x400000
 
 def parseArguments():
     """ Parse the program's arguments. """
@@ -60,15 +61,14 @@ def create_C_file(library_name: str, function_name: str, params: list[Variable])
 def create_binary(library_name: str):
     os.system(f"gcc -o {C_FILE_NAME} {C_FILE_NAME}.c {library_name}.a")
 
-def symbolically_execute(target_func: str, params: list[Variable], global_vars: list[Variable]):
+def symbolically_execute(target_func: str, params: list[Variable]):
     """ Execute the binary with angr and search a path to the target function. Then, print the values of the parameters. """
     args = [f'./{C_FILE_NAME}']
     for param in params:
         args.append(claripy.BVS(param.name, param.size))
 
     proj = angr.Project(f'./{C_FILE_NAME}')
-    target = target_func
-    target_sym = proj.loader.find_symbol(target)
+    target_sym = proj.loader.find_symbol(target_func)
 
     state = proj.factory.entry_state(args=args)
     simgr = proj.factory.simulation_manager(state)
