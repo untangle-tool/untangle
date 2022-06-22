@@ -31,14 +31,16 @@ def create_C_file(library_name: str, function_name: str, params: list):
     code += "int main(int argc, char ** argv){\n"
 
     for i, param in enumerate(params, start=1):
-        if param[1] == "char":
-            code += f"\t{param[1]} {param[0]} = *argv[{i}];\n"
-        elif param[1] == "char*":
-            code += f"\t{param[1]} {param[0]} = argv[{i}];\n"
-        elif param[1] == "float":
-            code += f"\t{param[1]} {param[0]} = atof(argv[{i}]);\n"
+        if param.type == "char":
+            code += f"\t{param.type} {param.name} = *argv[{i}];\n"
+        elif param.type == "char*":
+            code += f"\t{param.type} {param.name} = argv[{i}];\n"
+        elif param.type == "void*":
+            code += f"\t{param.type} {param.name} = argv[{i}];\n" 
+        elif param.type == "float":
+            code += f"\t{param.type} {param.name} = atof(argv[{i}]);\n"
         else:
-            code += f"\t{param[1]} {param[0]} = atoi(argv[{i}]);\n"
+            code += f"\t{param.type} {param.name} = atoi(argv[{i}]);\n"
 
     code += f"\t{function_name}("
     for param in params:
