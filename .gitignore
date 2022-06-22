@@ -2,3 +2,4 @@ temp*
 test*
 *.a
 *.o
+__pycache__/
