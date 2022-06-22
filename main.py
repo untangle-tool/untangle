@@ -6,7 +6,9 @@ import claripy
 import os
 import sys
 
+from pwn import ELF
 from variable import Variable
+
 C_FILE_NAME = "temp"
 BASE_ADDR = 0x400000
 
@@ -70,7 +72,13 @@ def symbolically_execute(target_func: str, params: list[Variable]):
     proj = angr.Project(f'./{C_FILE_NAME}')
     target_sym = proj.loader.find_symbol(target_func)
 
-    state = proj.factory.entry_state(args=args)
+    state = proj.factory.entry_state(args=args, add_options={angr.options.SYMBOL_FILL_UNCONSTRAINED_MEMORY})
+    bss = claripy.BVS('.bss', proj.loader.main_object.sections_map['.bss'].memsize * 8)
+    state.memory.store(proj.loader.main_object.sections_map['.bss'].vaddr, bss)
+
+    data = claripy.BVS('.data', proj.loader.main_object.sections_map['.data'].memsize * 8)
+    state.memory.store(proj.loader.main_object.sections_map['.data'].vaddr, data)
+
     simgr = proj.factory.simulation_manager(state)
 
     simgr.explore(find=target_sym.rebased_addr)
