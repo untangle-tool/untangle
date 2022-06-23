@@ -7,6 +7,7 @@ import os
 import sys
 
 from pwn import ELF
+from analyzer import Analyzer
 from variable import Variable
 
 C_FILE_NAME = "temp"
@@ -63,32 +64,6 @@ def create_C_file(library_name: str, function_name: str, params: list[Variable])
 def create_binary(library_name: str):
     os.system(f"gcc -o {C_FILE_NAME} {C_FILE_NAME}.c {library_name}.a")
 
-def symbolically_execute(target_func: str, params: list[Variable]):
-    """ Execute the binary with angr and search a path to the target function. Then, print the values of the parameters. """
-    args = [f'./{C_FILE_NAME}']
-    for param in params:
-        args.append(claripy.BVS(param.name, param.size))
-
-    proj = angr.Project(f'./{C_FILE_NAME}')
-    target_sym = proj.loader.find_symbol(target_func)
-
-    state = proj.factory.entry_state(args=args, add_options={angr.options.SYMBOL_FILL_UNCONSTRAINED_MEMORY})
-    bss = claripy.BVS('.bss', proj.loader.main_object.sections_map['.bss'].memsize * 8)
-    state.memory.store(proj.loader.main_object.sections_map['.bss'].vaddr, bss)
-
-    data = claripy.BVS('.data', proj.loader.main_object.sections_map['.data'].memsize * 8)
-    state.memory.store(proj.loader.main_object.sections_map['.data'].vaddr, data)
-
-    simgr = proj.factory.simulation_manager(state)
-
-    simgr.explore(find=target_sym.rebased_addr)
-
-    if len(simgr.found) > 0:
-        found = simgr.found[0]
-        print("Values of the parameters:")
-        for i, arg in enumerate(args[1:]):
-            print(f"{params[i].name} = {found.solver.eval(arg, cast_to=bytes).decode()}")
-
 def main():
     args = parseArguments()
     
@@ -106,7 +81,9 @@ def main():
 
     create_C_file(library_name=library_name, function_name=function_name, params=params)
     create_binary(library_name=library_name)
-    symbolically_execute(target_func=target_fn_name, params=params)
+
+    analyzer = Analyzer(C_FILE_NAME, target_function=target_fn_name, parameters=params)
+    analyzer.symbolically_execute()
 
 if __name__ == '__main__':
     main()
