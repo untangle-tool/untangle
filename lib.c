@@ -11,7 +11,7 @@ static void target_function(void){
 }
 
 static void static_func1(int a, char b) {
-	if (a == 0x423452 && (flag1 | 0xff000) == 0xfffff && flag2 = 0xdeadbeef)
+	if (a == 0x423452 && (flag1 | 0xff000) == 0xfffff && flag2 == 0xdeadbeef)
 		target_function();
 }
 
