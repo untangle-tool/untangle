@@ -21,6 +21,15 @@ class Analyzer:
 
         self.symbolic_sections.append(section)
 
+    def find_globals(self, state: angr.sim_state.SimState):
+        constraints = state.solver.constraints
+
+        global_constraints = []
+        for c in constraints:
+            if '.bss' in str(c) or '.data' in str(c):
+                global_constraints.append(str(c))
+
+        return global_constraints
     def symbolically_execute(self):
         """ Setup symbolic execution and search a path to the target function. Then, print the values of the parameters. """
         args = [f'./{self.binary_name}']
