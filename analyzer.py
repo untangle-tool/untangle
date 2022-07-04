@@ -1,5 +1,6 @@
 import angr
 import claripy
+from exception import SectionException
 
 from variable import Variable
 
