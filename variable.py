@@ -10,3 +10,6 @@ class Variable:
 
     def set_address(self, address):
         self.address = address
+
+    def __repr__(self):
+        return f"Name:{self.name}, type:{self.type}, size {self.size}, addr {hex(self.address)}"
