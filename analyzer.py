@@ -61,6 +61,13 @@ class Analyzer:
         """ Dump the memory content at the given address. """
         return state.solver.eval(state.memory.load(at_address, size), cast_to=bytes)
 
+    def eval_args(self, state: angr.sim_state.SimState):
+        """ Evaluate the arguments of the target function with the solver of the given state. """
+        args = []
+        for arg in self.args[1:]:
+            args.append(state.solver.eval(arg, cast_to=bytes))
+        return args
+
     def symbolically_execute(self):
         """ Setup symbolic execution and search a path to the target function. Then, print the values of the parameters. """
         args = [f'./{self.binary_name}']
