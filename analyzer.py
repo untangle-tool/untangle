@@ -4,7 +4,7 @@ import claripy
 from variable import Variable
 
 class Analyzer:
-    BASE_ADDR = 0x400000
+    BASE_ADDR = 0x000000
 
     def __init__(self, binary_name: str, target_function: str, parameters: list[Variable]):
         self.binary_name = binary_name
