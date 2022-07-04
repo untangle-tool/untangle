@@ -1,12 +1,9 @@
 #!/usr/bin/python3
 
-import angr
 import argparse
-import claripy
 import os
 import sys
 
-from pwn import ELF
 from analyzer import Analyzer
 from variable import Variable
 
