@@ -56,6 +56,11 @@ class Analyzer:
             address = self.proj.loader.main_object.sections_map[section].vaddr + self.proj.loader.main_object.sections_map[section].memsize - ((max_pos+1) // 8)
             parsed_constraints.append(Variable(name=section, size=size, address=address))
         return parsed_constraints
+    
+    def dump_memory_content(self, at_address: int, size: int, state: angr.sim_state.SimState):
+        """ Dump the memory content at the given address. """
+        return state.solver.eval(state.memory.load(at_address, size), cast_to=bytes)
+
     def symbolically_execute(self):
         """ Setup symbolic execution and search a path to the target function. Then, print the values of the parameters. """
         args = [f'./{self.binary_name}']
