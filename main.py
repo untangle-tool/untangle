@@ -80,7 +80,21 @@ def main():
     create_binary(library_name=library_name)
 
     analyzer = Analyzer(C_FILE_NAME, target_function=target_fn_name, parameters=params)
-    analyzer.symbolically_execute()
+    found = analyzer.symbolically_execute()
+    if found:
+        print("<--- Function arguments --->")
+        evaluated_params = analyzer.eval_args(found)
+        for i, param in enumerate(evaluated_params):
+            print(f"*\t{params[i].name} = {param}")
+
+        print("<--- Global variables --->")
+        global_constraints = analyzer.find_globals(found)
+        parsed_constraints = analyzer.parse_constraints(global_constraints)
+        for constraint in parsed_constraints:
+            print(f"*\tGlobal found at offset {hex(constraint.address)} (section {constraint.name}) with size {constraint.size}")
+            print(f"*\tValue of the global should be: {analyzer.dump_memory_content(constraint.address, constraint.size, found)}")
+    else:
+        print("No solution could be found.")
 
 if __name__ == '__main__':
     main()
