@@ -7,8 +7,6 @@ class Variable:
         self.name = name
         self.type = type
         self.size = size
-
-    def set_address(self, address):
         self.address = address
 
     def __repr__(self):
