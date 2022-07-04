@@ -70,13 +70,13 @@ class Analyzer:
 
     def symbolically_execute(self):
         """ Setup symbolic execution and search a path to the target function. Then, print the values of the parameters. """
-        args = [f'./{self.binary_name}']
+        self.args = [f'./{self.binary_name}']
         for param in self.parameters:
-            args.append(claripy.BVS(param.name, param.size))
+            self.args.append(claripy.BVS(param.name, param.size))
 
         target_sym = self.proj.loader.find_symbol(self.target_function)
 
-        state = self.proj.factory.entry_state(args=args, add_options={angr.options.SYMBOL_FILL_UNCONSTRAINED_MEMORY})
+        state = self.proj.factory.entry_state(args=self.args, add_options={angr.options.SYMBOL_FILL_UNCONSTRAINED_MEMORY})
         self.__make_section_symbolic('.bss', state)
         self.__make_section_symbolic('.data', state)
 
