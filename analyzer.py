@@ -84,13 +84,6 @@ class Analyzer:
         simgr.explore(find=target_sym.rebased_addr)
 
         if len(simgr.found) > 0:
-            found = simgr.found[0]
-            print("Values of the parameters:")
-            for i, arg in enumerate(args[1:]):
-                print(f"{self.parameters[i].name} = {found.solver.eval(arg, cast_to=bytes).decode()}")
-
-            for arg in args[1:]:
-                print(arg)
-
-            for sect in self.symbolic_sections:
-                print(f"{sect} = {found.solver.eval(sect, cast_to=bytes)}")
+            return simgr.found[0]
+        else:
+            return None
