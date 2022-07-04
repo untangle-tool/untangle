@@ -8,7 +8,6 @@ from analyzer import Analyzer
 from variable import Variable
 
 C_FILE_NAME = "temp"
-BASE_ADDR = 0x400000
 
 def parseArguments():
     """ Parse the program's arguments. """
