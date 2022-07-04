@@ -30,6 +30,32 @@ class Analyzer:
                 global_constraints.append(str(c))
 
         return global_constraints
+
+    def parse_constraints(self, constraints: list[str]):
+        """ Parse the constraints and return a list of tuples containing section, size and address. """
+        parsed_constraints = []
+        for c in constraints:
+            start_index = c.find('[')
+            end_index = c.find(']')
+
+            size_slice = c[start_index+1:end_index]
+            max_pos, min_pos = size_slice.split(':')
+            max_pos, min_pos = int(max_pos), int(min_pos)
+
+            size = (max_pos - min_pos + 1) // 8
+            try:
+                if '.bss' in c:
+                    section = '.bss'
+                elif '.data' in c:
+                    section = '.data'
+                else:
+                    raise SectionException("Could not find .bss or .data in constraint.")
+            except SectionException as e:
+                print(e)
+
+            address = self.proj.loader.main_object.sections_map[section].vaddr + self.proj.loader.main_object.sections_map[section].memsize - ((max_pos+1) // 8)
+            parsed_constraints.append(Variable(name=section, size=size, address=address))
+        return parsed_constraints
     def symbolically_execute(self):
         """ Setup symbolic execution and search a path to the target function. Then, print the values of the parameters. """
         args = [f'./{self.binary_name}']
