@@ -3,12 +3,7 @@
 Build a binary analysis framework that, given some parameters in input (library file, function name, name and size of the parameters and name of a target function to reach), creates a C file that links the library and calls the exported function.
 Then, it should compile the file and run it with angr, with the objective to get to the call to "TARGET".
 
-The objective is to understand which parameters we should pass to the function to redirect the control flow to the function call.
-
-## Implementation
-I plan to use `argparse` to parse the command line arguments: it's pretty simple and intuitive, and it allows to easily write a help documentation.
-
-The name of the C file will be stored in a global variable, at least for the moment.
+The objective is to understand which value we should give to the function parameters and to global variables to redirect the control flow to the target function call.
 
 ## Instructions
 First, compile the static library:
@@ -39,4 +34,19 @@ optional arguments:
   -h, --help            show this help message and exit
   -p param_name param_type param_size, --parameter param_name param_type param_size
                         Name, type and size of the parameter(s) of the function. Pointers should be specified with type 'ptr'.
+```
+
+To speed up the process and avoid writing long commands every time, `start_script.sh` is provided.
+
+The output of the script will be something like this:
+```
+$ ./start_script.sh                                                                              
+<--- Function arguments --->
+*       a = b'4338770\xb2'
+*       b = b'\x00'
+<--- Global variables --->
+*       Global found at offset 0x4020 (section .bss) with size 4
+*       Value of the global should be: b'\xff\x0f\x00\x00'
+*       Global found at offset 0x4024 (section .bss) with size 4
+*       Value of the global should be: b'\xef\xbe\xad\xde'
 ```
