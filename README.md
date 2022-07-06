@@ -6,11 +6,8 @@ Then, it should compile the file and run it with angr, with the objective to get
 The objective is to understand which value we should give to the function parameters and to global variables to redirect the control flow to the target function call.
 
 ## Instructions
-First, compile the static library:
-```
-gcc -c lib.c
-ar -rc lib.a *.o
-```
+First, place the library in the `libs` folder.
+
 Then, start the script by passing the following arguments:
 * library name (without extension)
 * name of the function containing the vulnerable function pointer call
