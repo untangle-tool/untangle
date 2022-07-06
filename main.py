@@ -8,6 +8,7 @@ from analyzer import Analyzer
 from variable import Variable
 
 C_FILE_NAME = "temp"
+LIBS_DIR = "libs"
 
 def parseArguments():
     """ Parse the program's arguments. """
@@ -26,7 +27,7 @@ def parseArguments():
 
 def create_C_file(library_name: str, function_name: str, params: list[Variable]):
     """ Function that creates a C file (from a template) that links the specified library and calls the specified function. """
-    code = f"#include \"{library_name}.h\"\n"
+    code = f"#include \"{LIBS_DIR}/{library_name}.h\"\n"
     code += "#include <stdio.h>\n"
     code += "#include <stdlib.h>\n"
     code += "int main(int argc, char ** argv){\n"
@@ -58,7 +59,7 @@ def create_C_file(library_name: str, function_name: str, params: list[Variable])
         f.write(code)
 
 def create_binary(library_name: str):
-    os.system(f"gcc -o {C_FILE_NAME} {C_FILE_NAME}.c {library_name}.a")
+    os.system(f"gcc -o {C_FILE_NAME} {C_FILE_NAME}.c {LIBS_DIR}/{library_name}.a")
 
 def main():
     args = parseArguments()
