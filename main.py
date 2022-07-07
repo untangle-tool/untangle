@@ -25,42 +25,6 @@ def parseArguments():
 
     return vars(parser.parse_args())
 
-def create_C_file(library_name: str, function_name: str, params: list[Variable]):
-    """ Function that creates a C file (from a template) that links the specified library and calls the specified function. """
-    code = f"#include \"{LIBS_DIR}/{library_name}.h\"\n"
-    code += "#include <stdio.h>\n"
-    code += "#include <stdlib.h>\n"
-    code += "int main(int argc, char ** argv){\n"
-
-    for i, param in enumerate(params, start=1):
-        if param.type == "char":
-            code += f"\t{param.type} {param.name} = *argv[{i}];\n"
-        elif param.type == "char*":
-            code += f"\t{param.type} {param.name} = argv[{i}];\n"
-        elif param.type == "void*":
-            code += f"\t{param.type} {param.name} = argv[{i}];\n" 
-        elif param.type == "float":
-            code += f"\t{param.type} {param.name} = atof(argv[{i}]);\n"
-        else:
-            code += f"\t{param.type} {param.name} = atoi(argv[{i}]);\n"
-
-    code += f"\t{function_name}("
-    for param in params:
-        code += f"{param.name}, "
-    
-    if len(params) != 0:
-        # If the function has one or more parameters, truncate the last ", ".
-        code = code[:-2] 
-    
-    code += ");\n"
-    code += "\treturn 0;\n}"
-    
-    with open(C_FILE_NAME + ".c", "w") as f:
-        f.write(code)
-
-def create_binary(library_name: str):
-    os.system(f"gcc -o {C_FILE_NAME} {C_FILE_NAME}.c {LIBS_DIR}/{library_name}.a")
-
 def main():
     args = parseArguments()
     
@@ -76,10 +40,7 @@ def main():
                 print("The size should be an integer.")
                 sys.exit(0)
 
-    create_C_file(library_name=library_name, function_name=function_name, params=params)
-    create_binary(library_name=library_name)
-
-    analyzer = Analyzer(C_FILE_NAME, target_function=target_fn_name, parameters=params)
+    analyzer = Analyzer(binary_name=os.path.join('libs', library_name), function_name=function_name, target_function=target_fn_name, parameters=params)
     found = analyzer.symbolically_execute()
     if found:
         print("<--- Function arguments --->")
