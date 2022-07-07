@@ -1,4 +1,5 @@
 temp*
 *.a
 *.o
+*.so
 __pycache__/
