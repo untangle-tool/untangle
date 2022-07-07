@@ -7,8 +7,9 @@ from variable import Variable
 class Analyzer:
     BASE_ADDR = 0x000000
 
-    def __init__(self, binary_name: str, target_function: str, parameters: list[Variable]):
+    def __init__(self, binary_name: str, function_name: str, target_function: str, parameters: list[Variable]):
         self.binary_name = binary_name
+        self.function_name = function_name
         self.target_function = target_function
         self.parameters = parameters
 
@@ -64,24 +65,27 @@ class Analyzer:
     def eval_args(self, state: angr.sim_state.SimState):
         """ Evaluate the arguments of the target function with the solver of the given state. """
         args = []
-        for arg in self.args[1:]:
+        for arg in self.args:
             args.append(state.solver.eval(arg, cast_to=bytes))
         return args
 
     def symbolically_execute(self):
         """ Setup symbolic execution and search a path to the target function. Then, print the values of the parameters. """
-        self.args = [f'./{self.binary_name}']
+        self.args = []
         for param in self.parameters:
             self.args.append(claripy.BVS(param.name, param.size))
 
-        target_sym = self.proj.loader.find_symbol(self.target_function)
+        function_addr = self.proj.loader.find_symbol(self.function_name).rebased_addr
+        target_addr = self.proj.loader.find_symbol(self.target_function).rebased_addr
 
-        state = self.proj.factory.entry_state(args=self.args, add_options={angr.options.SYMBOL_FILL_UNCONSTRAINED_MEMORY})
+        # State memory setup
+        state = self.proj.factory.call_state(function_addr, *self.args)
+        
         self.__make_section_symbolic('.bss', state)
         self.__make_section_symbolic('.data', state)
 
-        simgr = self.proj.factory.simulation_manager(state)
-        simgr.explore(find=target_sym.rebased_addr)
+        simgr = self.proj.factory.simulation_manager(state, add_options={angr.options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS})
+        simgr.explore(find=target_addr)
 
         if len(simgr.found) > 0:
             return simgr.found[0]
