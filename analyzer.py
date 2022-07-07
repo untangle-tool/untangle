@@ -79,12 +79,12 @@ class Analyzer:
         target_addr = self.proj.loader.find_symbol(self.target_function).rebased_addr
 
         # State memory setup
-        state = self.proj.factory.call_state(function_addr, *self.args)
+        state = self.proj.factory.call_state(function_addr, *self.args, add_options={angr.options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS})
         
         self.__make_section_symbolic('.bss', state)
         self.__make_section_symbolic('.data', state)
 
-        simgr = self.proj.factory.simulation_manager(state, add_options={angr.options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS})
+        simgr = self.proj.factory.simulation_manager(state)
         simgr.explore(find=target_addr)
 
         if len(simgr.found) > 0:
