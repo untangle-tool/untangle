@@ -1,5 +1,6 @@
 import angr
 import claripy
+from requests import options
 from exception import SectionException
 
 from variable import Variable
@@ -78,8 +79,13 @@ class Analyzer:
         function_addr = self.proj.loader.find_symbol(self.function_name).rebased_addr
         target_addr = self.proj.loader.find_symbol(self.target_function).rebased_addr
 
+        state_options = {
+            angr.options.SYMBOL_FILL_UNCONSTRAINED_MEMORY,
+            angr.options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS
+        }
+
         # State memory setup
-        state = self.proj.factory.call_state(function_addr, *self.args, add_options={angr.options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS})
+        state = self.proj.factory.call_state(function_addr, *self.args, add_options=state_options)
         
         self.__make_section_symbolic('.bss', state)
         self.__make_section_symbolic('.data', state)
