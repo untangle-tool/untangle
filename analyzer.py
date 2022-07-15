@@ -1,6 +1,5 @@
 import angr
 import claripy
-
 from requests import options
 from exception import SectionException
 
@@ -73,7 +72,7 @@ class Analyzer:
     def symbolically_execute(self, parameters: list[Variable]):
         """ Setup symbolic execution and search a path to the target function. Then, print the values of the parameters. """
         self.args = []
-        for param in self.parameters:
+        for param in parameters:
             if param.concrete:
                 self.args.append(claripy.BVV(param.value, param.size))
             else:
