@@ -44,27 +44,32 @@ def main():
     analyzer = Analyzer(binary_name=os.path.join('libs', library_name), function_name=function_name, target_function=target_fn_name)
     execute = True
 
+    
+
     while execute:
+        print("\n[+] Starting symbolic execution...")
         found = analyzer.symbolically_execute(parameters=params)
         execute = False
 
         if found:
-            print("<--- Function arguments --->")
             evaluated_params = analyzer.eval_args(found)
             for i, param in enumerate(evaluated_params):
                 params[i].value = param
                 params[i].concrete = True
-                print(f"*\t{params[i].name} = {param}")
 
-            print("<--- Global variables --->")
             global_constraints = analyzer.find_globals(found)
-
             for c in global_constraints:
                 if 'if' in c or 'else' in c or 'then' in c:
-                    print("Possible global array found. Executing again.")
+                    print("[+] Complex constraint on global variable found. Executing again.")
                     execute = True
 
             if not execute:
+                print("[+] Function arguments")
+                evaluated_params = analyzer.eval_args(found)
+                for i, param in enumerate(evaluated_params):
+                    print(f"*\t{params[i].name} = {param}")
+
+                print("[+] Global variables")
                 parsed_constraints = analyzer.parse_constraints(global_constraints)
                 for constraint in parsed_constraints:
                     print(f"*\tGlobal found at offset {hex(constraint.address)} (section {constraint.name}) with size {constraint.size}")
