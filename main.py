@@ -44,8 +44,6 @@ def main():
     analyzer = Analyzer(binary_name=os.path.join('libs', library_name), function_name=function_name, target_function=target_fn_name)
     execute = True
 
-    
-
     while execute:
         print("\n[+] Starting symbolic execution...")
         found = analyzer.symbolically_execute(parameters=params)
