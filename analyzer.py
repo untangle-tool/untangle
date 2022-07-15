@@ -1,5 +1,6 @@
 import angr
 import claripy
+
 from requests import options
 from exception import SectionException
 
@@ -8,11 +9,10 @@ from variable import Variable
 class Analyzer:
     BASE_ADDR = 0x000000
 
-    def __init__(self, binary_name: str, function_name: str, target_function: str, parameters: list[Variable]):
+    def __init__(self, binary_name: str, function_name: str, target_function: str):
         self.binary_name = binary_name
         self.function_name = function_name
         self.target_function = target_function
-        self.parameters = parameters
 
         self.proj = angr.Project(f'./{self.binary_name}', main_opts={'base_addr': self.BASE_ADDR})
         self.symbolic_sections = []
@@ -70,11 +70,14 @@ class Analyzer:
             args.append(state.solver.eval(arg, cast_to=bytes))
         return args
 
-    def symbolically_execute(self):
+    def symbolically_execute(self, parameters: list[Variable]):
         """ Setup symbolic execution and search a path to the target function. Then, print the values of the parameters. """
         self.args = []
         for param in self.parameters:
-            self.args.append(claripy.BVS(param.name, param.size))
+            if param.concrete:
+                self.args.append(claripy.BVV(param.value, param.size))
+            else:
+                self.args.append(claripy.BVS(param.name, param.size))
 
         function_addr = self.proj.loader.find_symbol(self.function_name).rebased_addr
         target_addr = self.proj.loader.find_symbol(self.target_function).rebased_addr
