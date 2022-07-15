@@ -33,9 +33,9 @@ def main():
     target_fn_name = args['target_fn_name']
     params = []
     if args['parameter']:
-        for p in args['parameter']:
+        for param in args['parameter']:
             try:
-                params.append(Variable(p[0], p[1], int(p[2])))
+                params.append(Variable(param[0], param[1], int(param[2])))
             except ValueError:
                 print("The size should be an integer.")
                 sys.exit(0)
