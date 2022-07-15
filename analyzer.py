@@ -1,6 +1,7 @@
 import angr
 import claripy
-from requests import options
+
+from angr.sim_type import SimTypeFunction
 from exception import SectionException
 
 from variable import Variable
@@ -87,7 +88,15 @@ class Analyzer:
         }
 
         # State memory setup
-        state = self.proj.factory.call_state(function_addr, *self.args, add_options=state_options)
+
+        prototype = SimTypeFunction([], None)
+        state = self.proj.factory.call_state(
+            function_addr,
+            *self.args,
+            add_options=state_options,
+            cc=self.proj.factory.cc(),
+            prototype=prototype
+        )
         
         self.__make_section_symbolic('.bss', state)
         self.__make_section_symbolic('.data', state)
