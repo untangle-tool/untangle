@@ -3,3 +3,4 @@ temp*
 *.o
 *.so
 __pycache__/
+.vscode/
