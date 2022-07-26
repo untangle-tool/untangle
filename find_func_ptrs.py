@@ -16,7 +16,7 @@ def run_codeql_query(db_path, query):
 	'''Run a CodeQL query and return results as a list of tuples.'''
 
 	n_cores = max(len(os.sched_getaffinity(0)) - 1, 1)
-	
+
 	with tempfile.TemporaryDirectory(prefix='codeql-query-') as tmpdir:
 		tmpdir     = Path(tmpdir)
 		tmpdir     = Path('.')
@@ -68,10 +68,10 @@ def main(argv):
 	fptr_decls = {}
 	fptr_calls = defaultdict(lambda: defaultdict(list))
 
-	for name, typ, decl_loc, *call_loc, exported_func, exported_loc in results:
+	for name, typ, decl_loc, *call_loc, exported_func, exported_loc, sig in results:
 		fptr_decls[name] = decl_loc
-		fptr_calls[name][tuple(call_loc)].append((exported_func, exported_loc))
-		
+		fptr_calls[name][tuple(call_loc)].append((exported_func, exported_loc, sig))
+
 	for name, decl_loc in fptr_decls.items():
 		print(name, 'declared at', decl_loc)
 		calls = fptr_calls[name]
@@ -79,10 +79,10 @@ def main(argv):
 		for call_loc in calls:
 			caller, *loc = call_loc
 			print('\tcalled from', caller, 'at', ':'.join(loc))
-			
-			for exp_func, exp_loc in calls[call_loc]:
-				print('\t\treachable from', exp_func, 'defined at', exp_loc)
-	
+
+			for exp_func, exp_loc, sig in calls[call_loc]:
+				print('\t\treachable from', exp_func, 'defined at', exp_loc, 'with signature', sig)
+
 
 ################################################################################
 
@@ -101,6 +101,25 @@ class FancyFunc extends Function {
 
 	FancyFunc getARootExportedFunc() {
 		result = this.getACaller*() and result.isExported()
+	}
+
+	private string stringifyParam(Parameter p) {
+		if p.getUnderlyingType() instanceof Enum
+		then result = "int" // NOTE: C++11 enums may have different enum-base
+		else result = p.getUnderlyingType().getUnspecifiedType().toString()
+	}
+
+	private string sig(Parameter cur, int nLeft) {
+		if nLeft = 0
+		then result = this.stringifyParam(cur)
+		else result = (this.stringifyParam(cur) + ", "
+			+ this.sig(this.getParameter(this.getNumberOfParameters() - nLeft), nLeft - 1))
+	}
+
+	string getSimplifiedSignature() {
+		(this.getNumberOfParameters() = 0 and result = "void")
+		or
+		result = this.sig(this.getParameter(0), this.getNumberOfParameters() - 1)
 	}
 }
 
@@ -133,7 +152,8 @@ select
 	l.getEndLine() as CallEndRow,
 	l.getEndColumn() as CallEndCol,
 	root.getQualifiedName() as ExportedFunc,
-	root.getLocation().getFile().getRelativePath() + ":" + root.getLocation().getStartLine() as Location
+	root.getLocation().getFile().getRelativePath() + ":" + root.getLocation().getStartLine() as Location,
+	root.getSimplifiedSignature() as Signature
 '''
 
 if __name__ == '__main__':
