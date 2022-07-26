@@ -1,11 +1,96 @@
-# SymEx Tool
-## Goal
+# Title - TBD
+The purpose of this tool is to find calls to function pointers inside the functions a library, and to find the values of global variables and parameters that are needed to get to the function pointer call.
+
+The tool is composed of two parts:
+1. A script that relies on CodeQL to find the function pointers in the library.
+2. A script that uses angr to perform the symbolic execution of the functions found with the first script and produce a report of the values of the parameters and global variables that are needed to get to the function pointer call.
+
+## Function pointers finder
+Install following instructions here:
+
+https://codeql.github.com/docs/codeql-cli/getting-started-with-the-codeql-cli/
+
+Create a database for a library:
+
+- Get source of the library and read the readme/build/install info files
+- Install needed build dependencies
+- Configure the library how you want (usually using `./configure --help` to see
+  the options)
+- Find the command needed to build the whole thing (most probably `make` or
+  similar), for make use `-j` to use all cores.
+- Run it with `codeql`:
+
+		codeql database create path/to/output/db --language=cpp --command 'COMMAND-TO-BUILD-LIB'
+
+  (codeql does not differentiate C and C++)
+
+For example for libcurl:
+
+```bash
+git clone 'https://github.com/curl/curl'
+cd curl
+./configure --disable-static --with-openssl --without-brotli --disable-static
+codeql database create ../curl-db --language=cpp --command 'make -j'
+```
+
+Then point my script to the db you created:
+
+```
+./find_func_ptrs.py curl-db
+```
+
+You will see an output like this:
+
+```
+Curl_cfree declared at lib/easy.c:115
+        called from Curl_cookie_init at lib/cookie.c:1225:5:1225:14
+                reachable from Curl_cookie_loadfiles defined at lib/cookie.c:328
+                reachable from Curl_cookie_init defined at lib/cookie.c:1157
+...
+```
+
+Meaning that:
+
+- `Curl_cfree` is the global function pointer
+- `Curl_cookie_init` calls it somehow
+- `Curl_cookie_init` is somehow reachable from `Curl_cookie_loadfiles` and
+  `Curl_cookie_init` through a chain of calls
+
+What you are interested in for testing is replacing the bit of source code at
+"called from ...", which can be automated something like this:
+
+```python
+# called from Curl_cookie_init at lib/cookie.c:1225:5:1225:14
+
+fname = 'lib/cookie.c'
+start_line, start_col, end_line, end_col = 1225, 5, 1225, 14
+
+with open(fname, 'r') as f:
+	source = f.readlines()
+
+source.insert(0, 'void TARGETFUNC(void) {}\n')
+source[start_line] = source[start_line].replace('Curl_cfree', 'TARGETFUNC')
+# this is the "stupid" way to do it, you could also use the start and end column
+# info to be more precise
+
+with open('libtarget.c', 'w') as f:
+	for line in source:
+		f.write(line)
+```
+
+Now clean the build (usually `make clean` or `make distclean`) and rebuild the
+library with the modified source code, after which you should be able to run it
+in your tool.
+
+
+## Symbolic execution part
+### Goal
 Build a binary analysis framework that, given some parameters in input (library file, function name, name and size of the parameters and name of a target function to reach), creates a C file that links the library and calls the exported function.
 Then, it should compile the file and run it with angr, with the objective to get to the call to "TARGET".
 
 The objective is to understand which value we should give to the function parameters and to global variables to redirect the control flow to the target function call.
 
-## Instructions
+### Instructions
 First, place the library in the `libs` folder.
 
 Then, start the script by passing the following arguments:
