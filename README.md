@@ -5,11 +5,12 @@ The tool is composed of two parts:
 1. A script that relies on CodeQL to find the function pointers in the library.
 2. A script that uses angr to perform the symbolic execution of the functions found with the first script and produce a report of the values of the parameters and global variables that are needed to get to the function pointer call.
 
+## Requirements
+* CodeQL: install following instructions here https://codeql.github.com/docs/codeql-cli/getting-started-with-the-codeql-cli/
+* Python 3.10
+* angr: install following instructions here https://docs.angr.io/installation/
+
 ## Function pointers finder
-Install following instructions here:
-
-https://codeql.github.com/docs/codeql-cli/getting-started-with-the-codeql-cli/
-
 Create a database for a library:
 
 - Get source of the library and read the readme/build/install info files
