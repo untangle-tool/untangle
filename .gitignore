@@ -1,6 +1,8 @@
-temp*
 *.a
 *.o
 *.so
 __pycache__/
+.cache/
 .vscode/
+libs/
+output_dir/
