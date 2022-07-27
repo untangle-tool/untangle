@@ -19,7 +19,7 @@ def run_codeql_query(db_path, query):
 
 	with tempfile.TemporaryDirectory(prefix='codeql-query-') as tmpdir:
 		tmpdir     = Path(tmpdir)
-		tmpdir     = Path('.')
+		# tmpdir     = Path('.')
 		query_path = tmpdir / 'query.ql'
 		query_file = query_path.open('w')
 		pack_file  = (tmpdir / 'qlpack.yml').open('w')
