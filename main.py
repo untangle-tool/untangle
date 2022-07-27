@@ -15,12 +15,12 @@ def parse_arguments():
 
     return vars(parser.parse_args())
 
-def find_function_pointers(codeql_db, out_file):
+def find_function_pointers(codeql_db_path: str, out_file_name: str):
     """
     Find function pointers in the given CodeQL database.
     """
-    with open(out_file, 'w') as f:
-            subprocess.run(['./find_func_ptrs.py', codeql_db], stdout=f)
+    with open(out_file_name, 'w') as f:
+            subprocess.run(['./find_func_ptrs.py', codeql_db_path], stdout=f)
 
 # This function probably needs additional arguments (library src path, build command)
 def recompile_library(out_file):
@@ -36,7 +36,7 @@ def recompile_library(out_file):
     # - Write the new source to the src file
     pass
 
-def parse_results(out_file):
+def parse_results(out_file_name: str):
     """
     Parse the results from the output file of find_func_ptrs.py and convert them into the format requested by symex.py.
     The result will be a list of dictionaries the form:
