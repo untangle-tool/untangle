@@ -72,6 +72,7 @@ def resolve_type_size(type_name: str):
         case _:
             size = 0
     return size
+
 def parse_results(out_file_name: str):
     """
     Parse the results from the output file of find_func_ptrs.py and convert them into the format requested by symex.py.
@@ -85,9 +86,41 @@ def parse_results(out_file_name: str):
         ...
     ]
     """
-    with open(out_file, 'r') as f:
-        pass
+    with open(out_file_name, 'r') as f:
+        lines = f.readlines()
     
+    output_hierarchy = {}
+    for line in lines:
+        if 'declared' in line:
+            func_ptr_name = line.split(' ')[0].strip()
+            curr_func_ptr = func_ptr_name
+            output_hierarchy[curr_func_ptr] = {}
+        elif 'called from' in line:
+            caller_name = line.split(' ')[2].strip()
+            curr_caller = caller_name
+            output_hierarchy[curr_func_ptr][curr_caller] = []
+        else:
+            output_hierarchy[curr_func_ptr][curr_caller].append(line.strip())
+
+    parsed_results = []
+    for func_ptr in output_hierarchy:
+        for caller in output_hierarchy[func_ptr]:
+            result = {}
+            result['function_ptr_name'] = func_ptr
+            
+            function_list = output_hierarchy[func_ptr][caller]
+            for func in function_list:
+                function_name = func.split(' ')[2].strip()
+                result['function_name'] = function_name
+                result['params_sizes'] = []
+                signature = func.split('signature')[1].strip().split(', ')
+                for param in signature:
+                    result['params_sizes'].append(resolve_type_size(param))
+
+            parsed_results.append(result)
+    
+    return parsed_results
+
 def symex(args, out_file):
     """
     Run symex.py with the given arguments, using out_file as the output file.
