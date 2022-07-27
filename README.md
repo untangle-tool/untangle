@@ -1,14 +1,27 @@
 # Title - TBD
 The purpose of this tool is to find calls to function pointers inside the functions a library, and to find the values of global variables and parameters that are needed to get to the function pointer call.
 
+## Structure of the tool
 The tool is composed of two parts:
 1. A script that relies on CodeQL to find the function pointers in the library.
 2. A script that uses angr to perform the symbolic execution of the functions found with the first script and produce a report of the values of the parameters and global variables that are needed to get to the function pointer call.
+
+The directories need to be organized as follows:
+* You will need to create CodeQL databases inside the `databases` folder
+* You will need to place the source code of the libraries in the `libraries_src` folder, creating a folder for each library
+* The shared objects of the libraries will be placed in `libraries_bin`
+* The output of the script will be placed in the `output_dir` folder
 
 ## Requirements
 * CodeQL: install following instructions here https://codeql.github.com/docs/codeql-cli/getting-started-with-the-codeql-cli/
 * Python 3.10
 * angr: install following instructions here https://docs.angr.io/installation/
+
+## Usage
+To run the tool, you simply need to run the following command:
+```bash
+./main.py -l <codeql_db_path> <src_path> [-l <codeql_db_path> <src_path> ...]
+```
 
 ## Function pointers finder
 Create a database for a library:
