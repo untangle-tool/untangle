@@ -6,3 +6,6 @@ __pycache__/
 .vscode/
 libs/
 output_dir/
+libraries_src/
+libraries_build/
+databases/
