@@ -36,6 +36,42 @@ def recompile_library(out_file):
     # - Write the new source to the src file
     pass
 
+def resolve_type_size(type_name: str):
+    """
+    Returns the size of the given type.
+    """
+    match type_name:
+        case 'int':
+            size = 4
+        case 'long':
+            size = 8
+        case type_name if '*' in type_name:
+            size = 8
+        case 'char':
+            size = 1
+        case 'void':
+            size = 0
+        case 'float':
+            size = 4
+        case 'double':
+            size = 8
+        case 'long double':
+            size = 16
+        case 'long long':
+            size = 8
+        case 'unsigned long long':
+            size = 8
+        case 'unsigned int':
+            size = 4
+        case 'unsigned long':
+            size = 8
+        case 'unsigned char':
+            size = 1
+        case 'unsigned short':
+            size = 2
+        case _:
+            size = 0
+    return size
 def parse_results(out_file_name: str):
     """
     Parse the results from the output file of find_func_ptrs.py and convert them into the format requested by symex.py.
