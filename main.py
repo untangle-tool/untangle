@@ -90,6 +90,7 @@ def parse_results(out_file_name: str):
     with open(out_file_name, 'r') as f:
         lines = f.readlines()
     
+    # Replicate the hierarchy "function pointer" -> "caller" -> "function to execute"
     output_hierarchy = {}
     for line in lines:
         if 'declared' in line:
@@ -103,21 +104,26 @@ def parse_results(out_file_name: str):
         else:
             output_hierarchy[curr_func_ptr][curr_caller].append(line.strip())
 
-    parsed_results = []
+    # Convert the output into the format requested by symex.py
+    temporary_results = []
     for func_ptr in output_hierarchy:
         for caller in output_hierarchy[func_ptr]:
-            result = {}
-            result['function_ptr_name'] = func_ptr
-            
             function_list = output_hierarchy[func_ptr][caller]
             for func in function_list:
                 function_name = func.split(' ')[2].strip()
+                result = {}
+                result['function_ptr_name'] = func_ptr
                 result['function_name'] = function_name
                 result['params_sizes'] = []
                 signature = func.split('signature')[1].strip().split(', ')
                 for param in signature:
                     result['params_sizes'].append(resolve_type_size(param))
+                temporary_results.append(result)
 
+    # Remove duplicates
+    parsed_results = []
+    for result in temporary_results:
+        if result not in parsed_results:
             parsed_results.append(result)
     
     return parsed_results
