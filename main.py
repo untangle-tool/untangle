@@ -3,6 +3,9 @@ import argparse
 import os
 import subprocess
 import sys
+import time
+
+OUT_DIR = 'output_dir'
 
 def parse_arguments():
     """ Parse the program's arguments. """
@@ -98,7 +101,7 @@ def parse_results(out_file_name: str):
                 for param in signature:
                     result['params_sizes'].append(resolve_type_size(param))
                 temporary_results.append(result)
-
+    
     # Remove duplicates
     parsed_results = []
     for result in temporary_results:
@@ -115,8 +118,8 @@ def symex(args, out_file):
 
 def main():
     
-    # Parse arguments
-    # - List of codeql databases
+    if not os.path.exists(OUT_DIR):
+        os.mkdir(OUT_DIR)
 
     inputs = parse_arguments()['input']
 
@@ -128,7 +131,7 @@ def main():
 
         if not os.path.exists(os.path.join(OUT_DIR, lib_name)):
             os.mkdir(os.path.join(OUT_DIR, lib_name))
-
+        
         parsed_results = parse_results(funcptr_out_fname)
         for result in parsed_results:
             print(f"\t[*] Starting symbolic execution of function {result['function_name']}")
@@ -141,13 +144,15 @@ def main():
                 symex_args.append(f"param_{j}")
                 symex_args.append("type")
                 symex_args.append(f"{param_size}")
-
+            
             with open(symex_out_file, "w") as f:
                 start = time.time()
                 subprocess.run(['python', 'symex.py', *symex_args], stdout=f)
                 total_time = time.time() - start
                 f.write(f"\n\n[*] Total time: {total_time}")
 
+        print(*parsed_results, sep='\n')
+        print(len(parsed_results))
 
 if __name__ == '__main__':
     main()
