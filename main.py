@@ -151,8 +151,6 @@ def main():
                 total_time = time.time() - start
                 f.write(f"\n\n[*] Total time: {total_time}")
 
-        print(*parsed_results, sep='\n')
-        print(len(parsed_results))
 
 if __name__ == '__main__':
     main()
