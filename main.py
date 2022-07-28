@@ -16,27 +16,6 @@ def parse_arguments():
 
     return vars(parser.parse_args())
 
-def find_function_pointers(codeql_db_path: str, out_file_name: str):
-    """
-    Find function pointers in the given CodeQL database.
-    """
-    with open(out_file_name, 'w') as f:
-            subprocess.run(['./find_func_ptrs.py', codeql_db_path], stdout=f)
-
-# This function probably needs additional arguments (library src path, build command)
-def recompile_library(out_file):
-    """
-    Recompile the libraries substituting the call to the function pointer with a call to TARGETFUNC.
-    """
-    # Filter the lines in out_file containing "called from X at filename"
-    # For each line:
-    # - Get the filename
-    # - Get the line and column number
-    # - Create a function with the following signature: void TARGETFUNC(void)
-    # - Substitute the call to the function pointer with a call to TARGETFUNC
-    # - Write the new source to the src file
-    pass
-
 def resolve_type_size(type_name: str):
     """
     Returns the size of the given type.
