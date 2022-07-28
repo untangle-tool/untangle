@@ -139,29 +139,29 @@ def main():
         funcptr_out_fname = entry[0]
         lib_name = entry[1]
 
-    # The output of the two scripts should only be placed in appropriate files.
-    # The output of this script should only be things like:
-    # - Found function pointers for library X
-    # - Executing function X out of Y for library Z
+        print(f"[*] Starting analysis {i+1} out of {len(inputs)}: library {lib_name}")
 
-    OUT_DIR = 'output_dir'
-    if not os.path.exists(OUT_DIR):
-        os.mkdir(OUT_DIR)
+        if not os.path.exists(os.path.join(OUT_DIR, lib_name)):
+            os.mkdir(os.path.join(OUT_DIR, lib_name))
 
-    codeql_dbs = parse_arguments()['codeql_db']
+        parsed_results = parse_results(funcptr_out_fname)
+        for result in parsed_results:
+            print(f"\t[*] Starting symbolic execution of function {result['function_name']}")
+            symex_out_file = os.path.join(OUT_DIR, lib_name, 'symex_out_' + result['function_ptr_name'] + '_' + result['function_name'] + '.txt')
+            symex_args = [lib_name]
+            symex_args.append(result['function_name'])
+            symex_args.append("TARGETFUNC")
+            for j, param_size in enumerate(result['params_sizes']):
+                symex_args.append("-p")
+                symex_args.append(f"param_{j}")
+                symex_args.append("type")
+                symex_args.append(f"{param_size}")
 
-    for db in codeql_dbs:
-        funcptr_out_file = os.path.join(OUT_DIR, 'funcptr_out_' + os.path.basename(db))
-        find_function_pointers(db, funcptr_out_file)
-        # recompile_library(funcptr_out_file)
-        parsed_results = parse_results(funcptr_out_file)
-        for func in parsed_results:
-            # Build the arguments for symex.py
-            # - Library name
-            # - Function name (func['function_name'])
-            # - Target function name (TARGETFUNC)
-            # - List of parameters (auto-generated names, sizes taken from func['params_sizes'])
-            symex_out_file = os.path.join(OUT_DIR, 'symex_out_' + func)
+            with open(symex_out_file, "w") as f:
+                start = time.time()
+                subprocess.run(['python', 'symex.py', *symex_args], stdout=f)
+                total_time = time.time() - start
+                f.write(f"\n\n[*] Total time: {total_time}")
 
 
 if __name__ == '__main__':
