@@ -12,7 +12,7 @@ def parse_arguments():
     """
 
     parser = argparse.ArgumentParser(description=description)
-    parser.add_argument('codeql_db', nargs='+', help="Path to the CodeQL database.")
+    parser.add_argument('-i', '--input', action='append', nargs=2, metavar=('input_file', 'lib_name'), help="Name of the input file and of the library.")
 
     return vars(parser.parse_args())
 
@@ -133,14 +133,11 @@ def main():
     # Parse arguments
     # - List of codeql databases
 
-    # For each CodeQL database:
-    # - Run find_func_ptrs.py as subprocess, saving its output to a file
+    inputs = parse_arguments()['input']
 
-    # - Parse the results from the output file of find_func_ptrs.py
-    # - Convert the results in the appropriate format for symex.py
-
-    # - Create an output file for each library / function pointer (TBD)
-    # - Run symex.py, with the appropriate arguments, as subprocess, recording the time it takes to run
+    for i, entry in enumerate(inputs):
+        funcptr_out_fname = entry[0]
+        lib_name = entry[1]
 
     # The output of the two scripts should only be placed in appropriate files.
     # The output of this script should only be things like:
