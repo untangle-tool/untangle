@@ -7,5 +7,5 @@ __pycache__/
 libs/
 output_dir/
 libraries_src/
-libraries_build/
+libraries_bin/
 databases/
