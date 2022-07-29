@@ -68,7 +68,8 @@ def parse_results(out_file_name: str):
         {
             'function_name': 'fname1',
             'function_ptr_name': 'fptr1',
-            'params_sizes': [size1, size2, ...]
+            'params_sizes': [size1, size2, ...],
+            'pointer': [True, False, ...]
         },
         ...
     ]
@@ -97,13 +98,11 @@ def parse_results(out_file_name: str):
             function_list = output_hierarchy[func_ptr][caller]
             for func in function_list:
                 function_name = func.split(' ')[2].strip()
-                result = {}
-                result['function_ptr_name'] = func_ptr
-                result['function_name'] = function_name
-                result['params_sizes'] = []
+                result = {'function_ptr_name': func_ptr, 'function_name': function_name, 'params_sizes': [], 'pointer': []}
                 signature = func.split('signature')[1].strip().split(', ')
                 for param in signature:
                     result['params_sizes'].append(resolve_type_size(param))
+                    result['pointer'].append('*' in param)
                 temporary_results.append(result)
     
     # Remove duplicates
