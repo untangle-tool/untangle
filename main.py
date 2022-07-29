@@ -122,31 +122,46 @@ def main():
 
     for i, entry in enumerate(inputs):
         funcptr_out_fname = entry[0]
-        lib_name = entry[1]
+        lib_path = entry[1]
 
-        print(f"[*] Starting analysis {i+1} out of {len(inputs)}: library {lib_name}")
+        lib_name = lib_path.split('/')[-1]
+
+        print(f"[*] Starting analysis {i+1} out of {len(inputs)}: {lib_name}")
 
         if not os.path.exists(os.path.join(OUT_DIR, lib_name)):
             os.mkdir(os.path.join(OUT_DIR, lib_name))
         
         parsed_results = parse_results(funcptr_out_fname)
-        for result in parsed_results:
-            print(f"\t[*] Starting symbolic execution of function {result['function_name']}")
+        for j, result in enumerate(parsed_results):
+            print(f"\t[{j+1}/{len(parsed_results)}] Starting symbolic execution of function {result['function_name']}")
             symex_out_file = os.path.join(OUT_DIR, lib_name, 'symex_out_' + result['function_ptr_name'] + '_' + result['function_name'] + '.txt')
             symex_args = [lib_name]
             symex_args.append(result['function_name'])
             symex_args.append("TARGETFUNC")
-            for j, param_size in enumerate(result['params_sizes']):
-                symex_args.append("-p")
-                symex_args.append(f"param_{j}")
-                symex_args.append("type")
-                symex_args.append(f"{param_size}")
-            
-            with open(symex_out_file, "w") as f:
-                start = time.time()
-                subprocess.run(['python', 'symex.py', *symex_args], stdout=f)
-                total_time = time.time() - start
-                f.write(f"\n\n[*] Total time: {total_time}")
+
+            exec_func = True
+            for k, param_size in enumerate(result['params_sizes']):
+                if param_size is None:
+                    print(f"\t\t[!] Could not resolve type of one of the parameters, skipping execution.")
+                    exec_func = False
+                    break
+                if result['pointer'][k]:
+                    print(f"\t\t[!] Parameter {k+1} is a pointer, skipping execution.")
+                    exec_func = False
+                    break
+                if param_size != 0:
+                    symex_args.append("-p")
+                    symex_args.append(f"param_{k}")
+                    symex_args.append("type")
+                    symex_args.append(f"{param_size*8}")
+
+            if exec_func:
+                with open(symex_out_file, "w") as f:
+                    start = time.time()
+                    subprocess.run(['python', 'symex.py', *symex_args], stdout=f)
+                    total_time = time.time() - start
+                    f.write(f"\n\n[*] Total time: {total_time}")
+                
 
 
 if __name__ == '__main__':
