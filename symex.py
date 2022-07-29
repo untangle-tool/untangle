@@ -8,7 +8,7 @@ from analyzer import Analyzer
 from variable import Variable
 
 C_FILE_NAME = "temp"
-LIBS_DIR = "libs"
+LIBS_DIR = "libraries_bin"
 
 def parseArguments():
     """ Parse the program's arguments. """
@@ -41,7 +41,7 @@ def main():
                 sys.exit(0)
 
     
-    analyzer = Analyzer(binary_name=os.path.join('libs', library_name), function_name=function_name, target_function=target_fn_name)
+    analyzer = Analyzer(binary_name=os.path.join(LIBS_DIR, library_name), function_name=function_name, target_function=target_fn_name)
     execute = True
 
     while execute:
