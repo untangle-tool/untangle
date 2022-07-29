@@ -52,8 +52,12 @@ def resolve_type_size(type_name: str):
             size = 1
         case 'unsigned short':
             size = 2
-        case _:
+        case 'bool':
+            size = 1
+        case 'void':
             size = 0
+        case _:
+            size = None
     return size
 
 def parse_results(out_file_name: str):
