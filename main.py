@@ -113,12 +113,6 @@ def parse_results(out_file_name: str):
     
     return parsed_results
 
-def symex(args, out_file):
-    """
-    Run symex.py with the given arguments, using out_file as the output file.
-    """
-    pass
-
 def main():
     
     if not os.path.exists(OUT_DIR):
