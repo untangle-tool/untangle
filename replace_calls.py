@@ -70,26 +70,13 @@ def main():
                 file_lines.insert(0, targetfunc_extern)
                 lines_added[file_path] = 1
 
-            # This handles multiline definitions.
-            if start_line != end_line:
-                for i in range(start_line+lines_added[file_path], end_line+lines_added[file_path]):
-                    file_lines[i] = "\n"
-                end_of_line = True
-            
             line_no = start_line + lines_added[file_path] - 1
-            if start_line == end_line:
-                end_of_line = file_lines[line_no][end_column] == ";"
-            else:
-                end_column = len(file_lines[line_no]) - 1
             
-            if end_of_line:
-                file_lines[line_no] = file_lines[line_no][:start_column-1] + "TARGETFUNC();" + file_lines[line_no][end_column:]
-                file_lines[line_no] = file_lines[line_no].replace(";;", ";")
-
-                # TO-DO: Find a way to replace multiple function pointer indirections with a single function call.
+            first_parenthesis = file_lines[line_no].find("(", start_column)
+            if first_parenthesis != -1:
+                file_lines[line_no] = file_lines[line_no][:start_column-1] + "TARGETFUNC" + file_lines[line_no][first_parenthesis:]
             else:
-                file_lines[line_no] = file_lines[line_no][:start_column-1] + "TARGETFUNC()" + file_lines[line_no][end_column:].strip() + "\n"
-            
+                file_lines[line_no] = file_lines[line_no][:start_column-1] + "TARGETFUNC();\n"
 
             with open(file_path, "w") as f:
                 f.writelines(file_lines)
