@@ -72,10 +72,12 @@ def main():
 
             line_no = start_line + lines_added[file_path] - 1
             
+            # Replace only the characters between "start_column" and the first parenthesis found.
             first_parenthesis = file_lines[line_no].find("(", start_column)
             if first_parenthesis != -1:
                 file_lines[line_no] = file_lines[line_no][:start_column-1] + "TARGETFUNC" + file_lines[line_no][first_parenthesis:]
             else:
+                # If no parenthesis is found, add also an empty couple of parentheses, a semi-colon and a newline.
                 file_lines[line_no] = file_lines[line_no][:start_column-1] + "TARGETFUNC();\n"
 
             with open(file_path, "w") as f:
