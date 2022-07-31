@@ -45,7 +45,7 @@ def main():
     execute = True
 
     while execute:
-        print("\n[+] Starting symbolic execution...")
+        print(f"[+] Starting symbolic execution of function {target_fn_name}")
         found = analyzer.symbolically_execute(parameters=params)
         execute = False
 
@@ -65,13 +65,13 @@ def main():
                 print("[+] Function arguments")
                 evaluated_params = analyzer.eval_args(found)
                 for i, param in enumerate(evaluated_params):
-                    print(f"\t* {params[i].name} = {param}")
+                    print(f"\t[{i+1}/{len(evaluated_params)}] {params[i].name} = {param}")
 
                 print("[+] Global variables")
                 parsed_constraints = analyzer.parse_constraints(global_constraints)
-                for constraint in parsed_constraints:
-                    print(f"\t* Global found at offset {hex(constraint.address)} (section {constraint.name}) with size {constraint.size}")
-                    print(f"\t* Value of the global should be: {analyzer.dump_memory_content(constraint.address, constraint.size, found)}")
+                for i, constraint in enumerate(parsed_constraints):
+                    print(f"\t[{i+1}/{len(parsed_constraints)}] Global found at offset {hex(constraint.address)} (section {constraint.name}) with size {constraint.size}")
+                    print(f"\t[{i+1}/{len(parsed_constraints)}] Value of the global should be: {analyzer.dump_memory_content(constraint.address, constraint.size, found)}")
         else:
             print("[!] No solution could be found.")
 
