@@ -65,15 +65,15 @@ def main():
                 print("[+] Function arguments")
                 evaluated_params = analyzer.eval_args(found)
                 for i, param in enumerate(evaluated_params):
-                    print(f"*\t{params[i].name} = {param}")
+                    print(f"\t* {params[i].name} = {param}")
 
                 print("[+] Global variables")
                 parsed_constraints = analyzer.parse_constraints(global_constraints)
                 for constraint in parsed_constraints:
-                    print(f"*\tGlobal found at offset {hex(constraint.address)} (section {constraint.name}) with size {constraint.size}")
-                    print(f"*\tValue of the global should be: {analyzer.dump_memory_content(constraint.address, constraint.size, found)}")
+                    print(f"\t* Global found at offset {hex(constraint.address)} (section {constraint.name}) with size {constraint.size}")
+                    print(f"\t* Value of the global should be: {analyzer.dump_memory_content(constraint.address, constraint.size, found)}")
         else:
-            print("No solution could be found.")
+            print("[!] No solution could be found.")
 
 if __name__ == '__main__':
     main()
