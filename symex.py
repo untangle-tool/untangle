@@ -50,11 +50,7 @@ def main():
         execute = False
 
         if found:
-            evaluated_params = analyzer.eval_args(found)
-            for i, param in enumerate(evaluated_params):
-                params[i].value = param
-                params[i].concrete = True
-
+            # Find constraints on global variables
             global_constraints = analyzer.find_globals(found)
             for c in global_constraints:
                 if 'if' in c or 'else' in c or 'then' in c:
@@ -62,16 +58,35 @@ def main():
                     execute = True
 
             if not execute:
-                print("[+] Function arguments")
-                evaluated_params = analyzer.eval_args(found)
-                for i, param in enumerate(evaluated_params):
-                    print(f"\t[{i+1}/{len(evaluated_params)}] {params[i].name} = {param}")
+                if len(params) != 0:
+                    # Evaluate parameters involved in constraints.
+                    evaluated_params = analyzer.eval_args(found)
+                    for i, param in enumerate(evaluated_params):
+                        params[i].value = param
+                        params[i].concrete = True
 
-                print("[+] Global variables")
+                    if len(evaluated_params) != 0:
+                        print("[+] Function arguments")
+                        evaluated_params = analyzer.eval_args(found)
+                        if len(evaluated_params) == 0 and analyzer.args_number() != 0:
+                            print("\tNo parameter was involved in any constraint.")
+            
+                        for i, param in enumerate(evaluated_params):
+                            print(f"\t[{i+1}/{len(evaluated_params)}] {params[i].name} = {param}")
+                    else:
+                        print("[!] No parameter was involved in any constraint.")
+                else:
+                    print("[!] No function parameter to evaluate.")
+                
+
                 parsed_constraints = analyzer.parse_constraints(global_constraints)
-                for i, constraint in enumerate(parsed_constraints):
-                    print(f"\t[{i+1}/{len(parsed_constraints)}] Global found at offset {hex(constraint.address)} (section {constraint.name}) with size {constraint.size}")
-                    print(f"\t[{i+1}/{len(parsed_constraints)}] Value of the global should be: {analyzer.dump_memory_content(constraint.address, constraint.size, found)}")
+                if len(parsed_constraints) != 0:
+                    print("[+] Global variables")
+                    for i, constraint in enumerate(parsed_constraints):
+                        print(f"\t[{i+1}/{len(parsed_constraints)}] Global found at offset {hex(constraint.address)} (section {constraint.name}) with size {constraint.size}")
+                        print(f"\t[{i+1}/{len(parsed_constraints)}] Value of the global should be: {analyzer.dump_memory_content(constraint.address, constraint.size, found)}")
+                else:
+                    print("[!] No global variable found in the constraints.")
         else:
             print("[!] No solution could be found.")
 
