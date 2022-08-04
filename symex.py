@@ -45,7 +45,7 @@ def main():
     execute = True
 
     while execute:
-        print(f"[+] Starting symbolic execution of function {target_fn_name}")
+        print(f"[+] Starting symbolic execution of function {function_name}")
         found = analyzer.symbolically_execute(parameters=params)
         execute = False
 
