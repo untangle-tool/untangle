@@ -6,6 +6,24 @@ import sys
 import time
 
 OUT_DIR = 'output_dir'
+TYPE_SIZES = {
+    "short": 8,
+    "int": 4,
+    "long": 8,
+    "ptr": 8,
+    "char": 1,
+    "void": 0,
+    "float": 4,
+    "double": 8,
+    "long double": 16,
+    "long long": 8,
+    "unsigned long long": 8,
+    "unsigned short": 2,
+    "unsigned int": 4,
+    "unsigned long": 8,
+    "unsigned char": 1,
+    "bool": 1
+}
 
 def parse_arguments():
     """ Parse the program's arguments. """
@@ -18,47 +36,6 @@ def parse_arguments():
     parser.add_argument('-i', '--input', action='append', nargs=2, metavar=('input_file', 'lib_name'), help="Name of the input file and of the library.")
 
     return vars(parser.parse_args())
-
-def resolve_type_size(type_name: str):
-    """
-    Returns the size of the given type.
-    """
-    match type_name:
-        case 'int':
-            size = 4
-        case 'long':
-            size = 8
-        case type_name if '*' in type_name:
-            size = 8
-        case 'char':
-            size = 1
-        case 'void':
-            size = 0
-        case 'float':
-            size = 4
-        case 'double':
-            size = 8
-        case 'long double':
-            size = 16
-        case 'long long':
-            size = 8
-        case 'unsigned long long':
-            size = 8
-        case 'unsigned int':
-            size = 4
-        case 'unsigned long':
-            size = 8
-        case 'unsigned char':
-            size = 1
-        case 'unsigned short':
-            size = 2
-        case 'bool':
-            size = 1
-        case 'void':
-            size = 0
-        case _:
-            size = None
-    return size
 
 def parse_results(out_file_name: str):
     """
