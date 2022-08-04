@@ -33,6 +33,9 @@ class Analyzer:
 
         return global_constraints
 
+    def args_number(self):
+        return len(self.args)
+
     def parse_constraints(self, constraints: list[str]):
         """ Parse the constraints and return a list of tuples containing section, size and address. """
         parsed_constraints = []
@@ -66,8 +69,13 @@ class Analyzer:
     def eval_args(self, state: angr.sim_state.SimState):
         """ Evaluate the arguments of the target function with the solver of the given state. """
         args = []
+        constraints = state.solver.constraints
         for arg in self.args:
-            args.append(state.solver.eval(arg, cast_to=bytes))
+            # The name of a bitvector is stored in BV.args[0]
+            involved_constraints = [c for c in constraints if arg.args[0] in str(c)]
+            if len(involved_constraints) > 0:
+                arg_value = state.solver.eval(arg, cast_to=bytes)
+                args.append(arg_value)
         return args
 
     def symbolically_execute(self, parameters: list[Variable]):
