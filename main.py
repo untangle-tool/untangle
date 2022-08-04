@@ -74,11 +74,28 @@ def parse_results(out_file_name: str):
         for caller in output_hierarchy[func_ptr]:
             function_list = output_hierarchy[func_ptr][caller]
             for func in function_list:
+                function_sig = ' '.join(func.split(' ')[2:])
                 function_name = func.split(' ')[2].strip()
-                result = {'function_ptr_name': func_ptr, 'function_name': function_name, 'params_sizes': [], 'pointer': []}
-                signature = func.split('signature')[1].strip().split(', ')
-                for param in signature:
-                    result['params_sizes'].append(resolve_type_size(param))
+                result = {
+                    'function_ptr_name': func_ptr,
+                    'function_name': function_name, 
+                    'params_sizes': [],
+                    'pointer': [],
+                    'preamble': '',
+                    'function_sig': function_sig
+                }
+                param_list = func.split('signature')[1].strip().split(', ')
+                for param in param_list:
+                    param_type = param.replace("*", "").strip()
+                    if param_type not in TYPE_SIZES:
+                        result['error'] += f"[!] Unknown parameter type {param_type}\n"
+                        result['params_sizes'].append(None)
+                    else:
+                        if "*" in param:
+                            param_type = "ptr"
+                        size = TYPE_SIZES[param_type]
+                        result['params_sizes'].append(size)
+                        
                     result['pointer'].append('*' in param)
                 temporary_results.append(result)
     
@@ -111,7 +128,7 @@ def main():
         parsed_results = parse_results(funcptr_out_fname)
         for j, result in enumerate(parsed_results):
             print(f"\t[{j+1}/{len(parsed_results)}] Starting symbolic execution of function {result['function_name']}")
-            symex_out_file = os.path.join(OUT_DIR, lib_name, 'symex_out_' + result['function_ptr_name'] + '_' + result['function_name'] + '.txt')
+            symex_out_file = os.path.join(OUT_DIR, lib_name, result['function_ptr_name'] + '__' + result['function_name'] + '.txt')
             symex_args = [lib_name]
             symex_args.append(result['function_name'])
             symex_args.append("TARGETFUNC")
@@ -120,10 +137,7 @@ def main():
             for k, param_size in enumerate(result['params_sizes']):
                 if param_size is None:
                     print(f"\t\t[!] Could not resolve type of one of the parameters, skipping execution.")
-                    exec_func = False
-                    break
-                if result['pointer'][k]:
-                    print(f"\t\t[!] Parameter {k+1} is a pointer, skipping execution.")
+                    print(f"\t\t[!] {result['error']}")
                     exec_func = False
                     break
                 if param_size != 0:
@@ -137,9 +151,8 @@ def main():
                     start = time.time()
                     subprocess.run(['python', 'symex.py', *symex_args], stdout=f)
                     total_time = time.time() - start
-                    f.write(f"\n\n[*] Total time: {total_time}")
-                
-
+                    f.write(f"\n\n[*] {result['function_sig']}")
+                    f.write(f"\n[*] Total time: {total_time}")
 
 if __name__ == '__main__':
     main()
