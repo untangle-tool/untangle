@@ -33,9 +33,6 @@ class Analyzer:
 
         return global_constraints
 
-    def args_number(self):
-        return len(self.args)
-
     def parse_constraints(self, constraints: list[str]):
         """ Parse the constraints and return a list of tuples containing section, size and address. """
         parsed_constraints = []
