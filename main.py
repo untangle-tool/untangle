@@ -88,7 +88,7 @@ def parse_results(out_file_name: str):
                 for param in param_list:
                     param_type = param.replace("*", "").strip()
                     if param_type not in TYPE_SIZES:
-                        result['error'] += f"[!] Unknown parameter type {param_type}\n"
+                        result['error'] += f"Unknown parameter type {param_type}\n"
                         result['params_sizes'].append(None)
                     else:
                         if "*" in param:
