@@ -81,7 +81,7 @@ def parse_results(out_file_name: str):
                     'function_name': function_name, 
                     'params_sizes': [],
                     'pointer': [],
-                    'preamble': '',
+                    'error': '',
                     'function_sig': function_sig
                 }
                 param_list = func.split('signature')[1].strip().split(', ')
