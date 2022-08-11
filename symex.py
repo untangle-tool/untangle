@@ -87,6 +87,12 @@ def main():
                         print(f"\t[{i+1}/{len(parsed_constraints)}] Value of the global should be: {analyzer.dump_memory_content(constraint.address, constraint.size, found)}")
                 else:
                     print("[!] No global variable found in the constraints.")
+
+                print("[+] Constraints")
+                constraints = found.solver.constraints
+                for i, constraint in enumerate(constraints):
+                    print(f"{[i+1]/len(constraints)} {constraint}")
+
         else:
             print("[!] No solution could be found.")
 
