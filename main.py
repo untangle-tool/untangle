@@ -137,7 +137,8 @@ def main():
             for k, param_size in enumerate(result['params_sizes']):
                 if param_size is None:
                     print(f"\t\t[!] Could not resolve type of one of the parameters, skipping execution.")
-                    print(f"\t\t[!] {result['error']}")
+                    for line in result['error'].split('\n'):    
+                        print(f"\t\t[!] {line}")
                     exec_func = False
                     break
                 if param_size != 0:
