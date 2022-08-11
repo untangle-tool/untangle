@@ -107,6 +107,7 @@ class Analyzer:
         self.__make_section_symbolic('.data', state)
 
         simgr = self.proj.factory.simulation_manager(state)
+        simgr.use_technique(tech=angr.exploration_techniques.veritesting.Veritesting())
         simgr.explore(find=target_addr)
 
         if len(simgr.found) > 0:
