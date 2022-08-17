@@ -102,7 +102,7 @@ def parse_results(out_file_name: str):
     # Remove duplicates
     parsed_results = []
     for result in temporary_results:
-        if result not in parsed_results:
+        if not any([x['function_name'] == result['function_name'] and x['target_func'] == result['target_func'] for x in parsed_results]):
             parsed_results.append(result)
     
     return parsed_results
