@@ -1,4 +1,5 @@
 import argparse
+from collections import defaultdict
 import os
 import shutil
 
@@ -54,14 +55,22 @@ def main():
 
     # Create a hierarchical dictionary of the function pointer information.
     function_pointers = organize_funcptr_info(lines)
-    
-    targetfunc_def = "void* TARGETFUNC(){}\n"
-    targetfunc_extern = "extern void* TARGETFUNC();\n"
-    defined = False
 
-    lines_added = dict()
+    number_lines_added = defaultdict(lambda: 0)
     for func_ptr in function_pointers:
-        for caller in function_pointers[func_ptr]:
+        
+        definition = []
+        definition.append(f"")
+        definition.append(f"static int NOOPT_TARGET_{func_ptr} = 0;\n")
+        definition.append(f"void* TARGET_{func_ptr}(void){{\n")
+        definition.append(f"\tNOOPT_TARGET_{func_ptr} = 1;\n")
+        definition.append("}\n")
+
+        declaration = f"void* TARGET_{func_ptr}(void);\n"
+
+        defined = False
+
+        for i, caller in enumerate(function_pointers[func_ptr]):
             location = caller.split(' ')[-1].strip()
             file_name  = location.split(':')[0]
             start_line, start_column, end_line, end_column = list(map(int, location.split(':')[1:]))
@@ -69,31 +78,47 @@ def main():
             
             with open(file_path, "r") as f:
                 file_lines = f.readlines()
+            
 
-            # Insert the definition of TARGETFUNC if it is not already defined.
+            # Create the define based on the actuall function call
+            line_no = start_line + number_lines_added[file_path] - 1
+            first_parenthesis = file_lines[line_no].find("(", start_column)
+            if first_parenthesis == -1:
+                actual_call = file_lines[line_no][start_column-1:end_column]
+            else:
+                actual_call = file_lines[line_no][start_column-1:first_parenthesis]
+            definition[0] = f"#define WRAPPER_{func_ptr}_{i}(...) (TARGET_{func_ptr}(), ({{{actual_call}(__VA_ARGS__);}}))\n"
+
+            # Insert the whole definition if it is not already defined.
             # Else, insert an extern declaration of the function.
             if not defined:
-                file_lines.insert(0, targetfunc_def)
-                lines_added[file_path] = 1
+                for j, line in enumerate(definition):
+                    file_lines.insert(j, line)
+                number_lines_added[file_path] += len(definition)
+                line_no += len(definition)
                 defined = True
-            elif defined and not targetfunc_extern in file_lines and not targetfunc_def in file_lines:
-                file_lines.insert(0, targetfunc_extern)
-                lines_added[file_path] = 1
+            elif defined and not definition[0] in file_lines:
+                file_lines.insert(0, definition[0])
+                file_lines.insert(1, declaration)
+                number_lines_added[file_path] += 2
+                line_no += 2
 
-            line_no = start_line + lines_added[file_path] - 1
             
             # Replace only the characters between "start_column" and the first parenthesis found.
-            first_parenthesis = file_lines[line_no].find("(", start_column)
             if first_parenthesis != -1:
-                file_lines[line_no] = file_lines[line_no][:start_column-1] + "TARGETFUNC" + file_lines[line_no][first_parenthesis:]
+                file_lines[line_no] = file_lines[line_no][:start_column-1] + f"WRAPPER_{func_ptr}_{i}" + file_lines[line_no][first_parenthesis:]
             else:
                 # If no parenthesis is found, add also an empty couple of parentheses, a semi-colon and a newline.
-                file_lines[line_no] = file_lines[line_no][:start_column-1] + "TARGETFUNC();\n"
+                file_lines[line_no] = file_lines[line_no][:start_column-1] + f"WRAPPER_{func_ptr}_{i}();\n"
+            
+            # If the call is on one line and there is no semi-colon, add one.
+            if monoline_function_call(file_lines[line_no]) and not ';\n' in file_lines[line_no]:
+                file_lines[line_no] = file_lines[line_no].strip() + ';\n'
 
             with open(file_path, "w") as f:
                 f.writelines(file_lines)
             
-            print(f"\t[*] Function pointer {func_ptr} replaced with TARGETFUNC in {file_path}")
+            print(f"\t[*] Function pointer {func_ptr} replaced with WRAPPER_{func_ptr}_{i} in {file_path}")
 
 
 if __name__ == '__main__':
