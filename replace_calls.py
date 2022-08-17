@@ -68,19 +68,9 @@ def main():
 
     number_lines_added = defaultdict(lambda: 0)
     for func_ptr in function_pointers:
-        
-        definition = []
-        definition.append(f"")
-        definition.append(f"static int NOOPT_TARGET_{func_ptr} = 0;\n")
-        definition.append(f"void* TARGET_{func_ptr}(void){{\n")
-        definition.append(f"\tNOOPT_TARGET_{func_ptr} = 1;\n")
-        definition.append("}\n")
-
-        declaration = f"void* TARGET_{func_ptr}(void);\n"
-
-        defined = False
 
         for i, caller in enumerate(function_pointers[func_ptr]):
+
             location = caller.split(' ')[-1].strip()
             file_name  = location.split(':')[0]
             start_line, start_column, end_line, end_column = list(map(int, location.split(':')[1:]))
@@ -89,7 +79,6 @@ def main():
             with open(file_path, "r") as f:
                 file_lines = f.readlines()
             
-
             # Create the define based on the actuall function call
             line_no = start_line + number_lines_added[file_path] - 1
             first_parenthesis = file_lines[line_no].find("(", start_column)
@@ -97,22 +86,14 @@ def main():
                 actual_call = file_lines[line_no][start_column-1:end_column]
             else:
                 actual_call = file_lines[line_no][start_column-1:first_parenthesis]
-            definition[0] = f"#define WRAPPER_{func_ptr}_{i}(...) (TARGET_{func_ptr}(), ({{{actual_call}(__VA_ARGS__);}}))\n"
 
-            # Insert the whole definition if it is not already defined.
-            # Else, insert an extern declaration of the function.
-            if not defined:
-                for j, line in enumerate(definition):
-                    file_lines.insert(j, line)
-                number_lines_added[file_path] += len(definition)
-                line_no += len(definition)
-                defined = True
-            elif defined and not definition[0] in file_lines:
-                file_lines.insert(0, definition[0])
-                file_lines.insert(1, declaration)
-                number_lines_added[file_path] += 2
-                line_no += 2
-
+            definition = generate_fn_definition(func_ptr=func_ptr, call_num=i, actual_call=actual_call)
+            
+            # Insert the function definition
+            for j, line in enumerate(definition):
+                file_lines.insert(j, line)
+            number_lines_added[file_path] += len(definition)
+            line_no += len(definition)
             
             # Replace only the characters between "start_column" and the first parenthesis found.
             if first_parenthesis != -1:
@@ -128,7 +109,7 @@ def main():
             with open(file_path, "w") as f:
                 f.writelines(file_lines)
             
-            print(f"\t[*] Function pointer {func_ptr} replaced with WRAPPER_{func_ptr}_{i} in {file_path}")
+            print(f"\t[*] Function pointer {func_ptr} replaced with a wrapper to TARGET_{func_ptr}_{i} in {file_path}")
 
 
 if __name__ == '__main__':
