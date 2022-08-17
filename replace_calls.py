@@ -27,6 +27,11 @@ def organize_funcptr_info(lines: str):
             function_pointers[curr_func_ptr].append(line.strip())
 
     return function_pointers
+    
+def monoline_function_call(line: str):
+    """ Check if the function call is on one line. """
+    return line.count('(') == line.count(')')
+
 def main():
     
     args = parse_arguments()
