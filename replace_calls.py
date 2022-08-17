@@ -33,6 +33,16 @@ def monoline_function_call(line: str):
     """ Check if the function call is on one line. """
     return line.count('(') == line.count(')')
 
+def generate_fn_definition(func_ptr: str, call_num: int, actual_call: str):
+    definition = []
+    definition.append(f"#define WRAPPER_{func_ptr}_{call_num}(...) (TARGET_{func_ptr}_{call_num}(), ({{{actual_call}(__VA_ARGS__);}}))\n")
+    definition.append(f"static int NOOPT_TARGET_{func_ptr}_{call_num} = 0;\n")
+    definition.append(f"void* TARGET_{func_ptr}_{call_num}(void){{\n")
+    definition.append(f"\tNOOPT_TARGET_{func_ptr}_{call_num} = 1;\n")
+    definition.append("}\n")
+
+    return definition
+
 def main():
     
     args = parse_arguments()
