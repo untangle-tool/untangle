@@ -15,6 +15,18 @@ def parse_arguments():
 
     return vars(parser.parse_args())
 
+def organize_funcptr_info(lines: str):
+    """ Organize the function pointer information in a hierarchical dictionary. """
+    function_pointers = {}
+    for line in lines:
+        if 'declared' in line:
+            func_ptr_name = line.split(' ')[0].strip()
+            curr_func_ptr = func_ptr_name
+            function_pointers[curr_func_ptr] = []
+        elif 'called from' in line:
+            function_pointers[curr_func_ptr].append(line.strip())
+
+    return function_pointers
 def main():
     
     args = parse_arguments()
@@ -36,14 +48,7 @@ def main():
         lines = f.readlines()
 
     # Create a hierarchical dictionary of the function pointer information.
-    function_pointers = {}
-    for line in lines:
-        if 'declared' in line:
-            func_ptr_name = line.split(' ')[0].strip()
-            curr_func_ptr = func_ptr_name
-            function_pointers[curr_func_ptr] = []
-        elif 'called from' in line:
-            function_pointers[curr_func_ptr].append(line.strip())
+    function_pointers = organize_funcptr_info(lines)
     
     targetfunc_def = "void* TARGETFUNC(){}\n"
     targetfunc_extern = "extern void* TARGETFUNC();\n"
