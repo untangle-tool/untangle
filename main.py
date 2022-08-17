@@ -71,7 +71,7 @@ def parse_results(out_file_name: str):
     # Convert the output into the format requested by symex.py
     temporary_results = []
     for func_ptr in output_hierarchy:
-        for caller in output_hierarchy[func_ptr]:
+        for i, caller in enumerate(output_hierarchy[func_ptr]):
             function_list = output_hierarchy[func_ptr][caller]
             for func in function_list:
                 function_sig = ' '.join(func.split(' ')[2:])
@@ -82,7 +82,8 @@ def parse_results(out_file_name: str):
                     'params_sizes': [],
                     'pointer': [],
                     'error': '',
-                    'function_sig': function_sig
+                    'function_sig': function_sig,
+                    'target_func': f"TARGET_{func_ptr}_{i}"
                 }
                 param_list = func.split('signature')[1].strip().split(', ')
                 for param in param_list:
@@ -127,11 +128,11 @@ def main():
         
         parsed_results = parse_results(funcptr_out_fname)
         for j, result in enumerate(parsed_results):
-            print(f"\t[{j+1}/{len(parsed_results)}] Starting symbolic execution of function {result['function_name']}")
-            symex_out_file = os.path.join(OUT_DIR, lib_name, result['function_ptr_name'] + '__' + result['function_name'] + '.txt')
+            print(f"\t[{j+1}/{len(parsed_results)}] Starting symbolic execution of function {result['function_name']}, target is {result['target_func']}")
+            symex_out_file = os.path.join(OUT_DIR, lib_name, result['function_name'] + '_' + result['target_func'] + '.txt')
             symex_args = [lib_name]
             symex_args.append(result['function_name'])
-            symex_args.append("TARGETFUNC")
+            symex_args.append(result['target_func'])
 
             exec_func = True
             for k, param_size in enumerate(result['params_sizes']):
