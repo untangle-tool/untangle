@@ -3,94 +3,121 @@
 import argparse
 import os
 import sys
+import time
 
 from .analyzer import Analyzer
 from .variable import Variable
 
-def parseArguments():
-    """ Parse the program's arguments. """
+# A symex passo il nome delle due funzioni, il binario e la signature non parsata
+# Creo una funzione qua dentro per fare il parsing della signature
 
-    description = """
-        Symbolic Execution tool to find the values that need to be passed to parameters to get to a vulnerable function call.
-    """
+TYPE_SIZES = {
+    "short": 8,
+    "int": 4,
+    "long": 8,
+    "ptr": 8,
+    "char": 1,
+    "void": 0,
+    "float": 4,
+    "double": 8,
+    "long double": 16,
+    "long long": 8,
+    "unsigned long long": 8,
+    "unsigned short": 2,
+    "unsigned int": 4,
+    "unsigned long": 8,
+    "unsigned char": 1,
+    "bool": 1
+}
 
-    parser = argparse.ArgumentParser(description=description)
-    parser.add_argument('binary', help="Library binary to analyze")
-    parser.add_argument('function_name', help="Name of the function containing the vulnerable function call.")
-    parser.add_argument('-p', '--parameter', action='append', nargs=3, metavar=('param_name', 'param_type', 'param_size'), help="Name, type and size of the parameter(s) of the function.")
-    parser.add_argument('target_fn_name', help="Name of the target function to be reached through symbolical execution.")
+def parse_signature(signature: str):
+    
+    results = []
 
-    return parser.parse_args()
+    for i, param in enumerate(signature.split(', ')):
+        param_type = param.replace("*", "").strip()
 
-def main():
-    args = parseArguments()
+        if param_type not in TYPE_SIZES:
+            results.append(Variable(f"param_{i}", param_type, None))
+        else:
+            if "*" in param:
+                param_type = "ptr"
+            size = TYPE_SIZES[param_type]
+            results.append(Variable(f"param_{i}", param_type, size))
 
-    function_name = args.function_name
-    target_fn_name = args.target_fn_name
-    params = []
+    return results
 
-    if args.parameter:
-        for param in args.parameter:
-            try:
-                params.append(Variable(param[0], param[1], int(param[2])))
-            except ValueError:
-                print("The size should be an integer.")
-                sys.exit(1)
 
-    analyzer = Analyzer(binary_name=args.binary, function_name=function_name, target_function=target_fn_name)
+def symex(fn_name: str, target_fn_name: str, signature: str, binary: str, out_file: str):
+    params = parse_signature(signature=signature) 
+
+    analyzer = Analyzer(binary_name=binary, function_name=fn_name, target_function=target_fn_name)
     execute = True
 
-    while execute:
-        print(f"[+] Starting symbolic execution of function {function_name}")
-        found = analyzer.symbolically_execute(parameters=params)
-        execute = False
+    with open(out_file, 'w') as f:
+        
+        if any(param.size is None for param in params):
+            execute = False
+            f.write(f"[!] Skipping execution of function {fn_name}:\n")
+            for param in params:
+                if param.size is None:
+                    f.write(f"\t[!] Unknown type {param.type}\n")
 
-        if found:
-            # Find constraints on global variables
-            global_constraints = analyzer.find_globals(found)
-            for c in global_constraints:
-                if 'if' in c or 'else' in c or 'then' in c:
-                    print("[+] Complex constraint on global variable found. Executing again.")
-                    execute = True
+        start = time.time()
+        while execute:
+            f.write(f"[+] Starting symbolic execution of function {fn_name}")
+            found = analyzer.symbolically_execute(parameters=params)
+            execute = False
 
-            if not execute:
-                if len(params) != 0:
-                    # Evaluate parameters involved in constraints.
-                    evaluated_params = analyzer.eval_args(found)
-                    for i, param in enumerate(evaluated_params):
-                        params[i].value = param
-                        params[i].concrete = True
+            if found:
+                # Find constraints on global variables
+                global_constraints = analyzer.find_globals(found)
+                for c in global_constraints:
+                    if 'if' in c or 'else' in c or 'then' in c:
+                        f.write("[+] Complex constraint on global variable found. Executing again.")
+                        execute = True
 
-                    if len(evaluated_params) != 0:
-                        print("[+] Function arguments")
+                if not execute:
+                    if len(params) != 0:
+                        # Evaluate parameters involved in constraints.
                         evaluated_params = analyzer.eval_args(found)
-                        if len(evaluated_params) == 0 and analyzer.args_number() != 0:
-                            print("\tNo parameter was involved in any constraint.")
-
                         for i, param in enumerate(evaluated_params):
-                            print(f"\t[{i+1}/{len(evaluated_params)}] {params[i].name} = {param}")
+                            params[i].value = param
+                            params[i].concrete = True
+
+                        if len(evaluated_params) != 0:
+                            f.write("[+] Function arguments")
+                            evaluated_params = analyzer.eval_args(found)
+                            if len(evaluated_params) == 0 and analyzer.args_number() != 0:
+                                f.write("\tNo parameter was involved in any constraint.")
+
+                            for i, param in enumerate(evaluated_params):
+                                f.write(f"\t[{i+1}/{len(evaluated_params)}] {params[i].name} = {param}")
+                        else:
+                            f.write("[!] No parameter was involved in any constraint.")
                     else:
-                        print("[!] No parameter was involved in any constraint.")
-                else:
-                    print("[!] No function parameter to evaluate.")
+                        f.write("[!] No function parameter to evaluate.")
 
 
-                parsed_constraints = analyzer.parse_constraints(global_constraints)
-                if len(parsed_constraints) != 0:
-                    print("[+] Global variables")
-                    for i, constraint in enumerate(parsed_constraints):
-                        print(f"\t[{i+1}/{len(parsed_constraints)}] Global found at offset {hex(constraint.address)} (section {constraint.name}) with size {constraint.size}")
-                        print(f"\t[{i+1}/{len(parsed_constraints)}] Value of the global should be: {analyzer.dump_memory_content(constraint.address, constraint.size, found)}")
-                else:
-                    print("[!] No global variable found in the constraints.")
+                    parsed_constraints = analyzer.parse_constraints(global_constraints)
+                    if len(parsed_constraints) != 0:
+                        f.write("[+] Global variables")
+                        for i, constraint in enumerate(parsed_constraints):
+                            f.write(f"\t[{i+1}/{len(parsed_constraints)}] Global found at offset {hex(constraint.address)} (section {constraint.name}) with size {constraint.size}")
+                            f.write(f"\t[{i+1}/{len(parsed_constraints)}] Value of the global should be: {analyzer.dump_memory_content(constraint.address, constraint.size, found)}")
+                    else:
+                        f.write("[!] No global variable found in the constraints.")
 
-                print("[+] Constraints")
-                constraints = found.solver.constraints
-                for i, constraint in enumerate(constraints):
-                    print(f"{[i+1]/len(constraints)} {constraint}")
+                    f.write("[+] Constraints")
+                    constraints = found.solver.constraints
+                    for i, constraint in enumerate(constraints):
+                        f.write(f"{[i+1]/len(constraints)} {constraint}")
 
-        else:
-            print("[!] No solution could be found.")
+            else:
+                f.write("[!] No solution could be found.")
+
+        end = time.time()
+        f.write(f"[+] Symbolic execution of function {fn_name} completed in {end - start} seconds.")
 
 if __name__ == '__main__':
     main()
