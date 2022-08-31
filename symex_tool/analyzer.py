@@ -79,9 +79,9 @@ class Analyzer:
         self.args = []
         for param in parameters:
             if param.concrete:
-                self.args.append(claripy.BVV(param.value, param.size))
+                self.args.append(claripy.BVV(param.value, param.size * 8))
             else:
-                self.args.append(claripy.BVS(param.name, param.size))
+                self.args.append(claripy.BVS(param.name, param.size * 8))
 
         function_addr = self.proj.loader.find_symbol(self.function_name).rebased_addr
         target_addr = self.proj.loader.find_symbol(self.target_function).rebased_addr

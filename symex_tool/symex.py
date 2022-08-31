@@ -40,7 +40,7 @@ def parse_signature(signature: str):
 
         if param_type not in TYPE_SIZES:
             results.append(Variable(f"param_{i}", param_type, None))
-        else:
+        elif param_type != "void":
             if "*" in param:
                 param_type = "ptr"
             size = TYPE_SIZES[param_type]
