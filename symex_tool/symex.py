@@ -13,19 +13,19 @@ from .variable import Variable
 # Creo una funzione qua dentro per fare il parsing della signature
 
 TYPE_SIZES = {
-    "short": 8,
-    "int": 8,
+    "short": 2,
+    "int": 4,
     "long": 8,
     "ptr": 8,
     "char": 1,
     "void": 0,
-    "float": 8,
+    "float": 4,
     "double": 8,
     "long double": 16,
     "long long": 8,
     "unsigned long long": 8,
     "unsigned short": 2,
-    "unsigned int": 8,
+    "unsigned int": 4,
     "unsigned long": 8,
     "unsigned char": 1,
     "bool": 1
@@ -40,7 +40,7 @@ def parse_signature(signature: str):
 
         if param_type not in TYPE_SIZES:
             results.append(Variable(f"param_{i}", param_type, None))
-        elif param_type != "void":
+        elif param != "void":
             if "*" in param:
                 param_type = "ptr"
             size = TYPE_SIZES[param_type]
