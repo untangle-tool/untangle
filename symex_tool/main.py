@@ -58,6 +58,16 @@ def setup_logging(level):
             record.levelname = 'FATAL' if record.levelno == logging.CRITICAL else record.levelname
             return record
 
+    # Angr will set the logger how it wants on import... annoying
+    log = logging.getLogger()
+    for h in log.handlers[:]:
+        log.removeHandler(h)
+
+    # Set these to warning to reduce noise
+    logging.getLogger('angr').setLevel(logging.WARNING)
+    logging.getLogger('cle').setLevel(logging.WARNING)
+    logging.getLogger('pyvex').setLevel(logging.WARNING)
+
     logging.basicConfig(level=level, format=fmt)
     logging.setLogRecordFactory(record_factory)
 
@@ -96,19 +106,18 @@ def analyze(db_path, binary_path, out_path):
     logger.info('Analyzing library "%s"', binary_path)
     out_path.mkdir(exist_ok=True)
 
-    total_idx = 1
-    for fptr in fptrs:
+    total = 1
+    for fptr, calls in fptrs.items():
         fptr_idx = 0
-        for call_loc in fptrs[fptr]:
-            for f in fptrs[fptr][call_loc]:
-                exported_func = f[0]
-                signature = f[1]
+        for call_loc, funcs in calls.items():
+            for exported_func, signature in funcs:
                 target_func = f"TARGET_{fptr}_{fptr_idx}"
 
                 symex_out_file = out_path / (exported_func + '_' + target_func + '.txt')
+                logger.info(f"[{total}] Starting symbolic execution of function {exported_func}, target is {target_func}")
+                total += 1
 
-                logger.debug(f"[{total_idx}] Starting symbolic execution of function {exported_func}, target is {target_func}")
-                symex(fn_name=exported_func, target_fn_name=target_func, signature=signature, binary=binary_path, out_file=symex_out_file)
+                symex(exported_func, target_func, signature, binary_path, symex_out_file)
 
 
 def main():
