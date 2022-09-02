@@ -5,27 +5,30 @@ import logging
 from pathlib import Path
 
 from .codeql import build_codeql_db
-from .finder import find_function_pointers
+from .extract import extract_function_pointers, extract_structs
 from .replacer import replace_calls
 from .symex import symex
 from .utils import ensure_command
 
 logger = logging.getLogger('main')
 
+
 def parse_arguments():
     parser = argparse.ArgumentParser()
+    parser.add_argument('-v', '--verbose', action='store_true', help='enable verbose logging')
 
     sub = parser.add_subparsers(dest='subcommand')
     build = sub.add_parser('build', description='Build the given library and a CodeQL database for subsequent analysis')
-    build.add_argument('library_path' , metavar='LIBRARY_PATH'  , help='Path to library source directory')
-    build.add_argument('db_path'      , metavar='OUT_DB_NAME'   , help='Name of the CodeQL database to create')
-    build.add_argument('build_command', metavar='BUILD_COMMAND' , help='Command to use to build the libray')
+    build.add_argument('library_path' , metavar='LIBRARY_PATH'  , help='path to library source directory')
+    build.add_argument('db_path'      , metavar='OUT_DB_NAME'   , help='name of the CodeQL database to create')
+    build.add_argument('build_command', metavar='BUILD_COMMAND' , help='command to use to build the libray')
     build.add_argument('clean_command', metavar='CLEAN_COMMAND' , nargs='?', default=None, help='Command to use to clean library sources before re-building')
 
-    analyze = sub.add_parser('analyze', description='Run a complete analysis of a previously built library')
-    analyze.add_argument('db_path' , metavar='CODEQL_DB_PATH', help='Path to library source directory')
-    analyze.add_argument('binary'  , metavar='BINARY'        , help='Binary of the built library (e.g. shared object)')
-    analyze.add_argument('out_path', metavar='OUTPUT_PATH'   , help='Output directory (created if needed)')
+    analyze = sub.add_parser('analyze' , description='Run a complete analysis of a previously built library')
+    analyze.add_argument('db_path'     , metavar='CODEQL_DB_PATH'    , help='path to CodeQL database for the library')
+    analyze.add_argument('library_path', metavar='BUILT_LIBRARY_PATH', help='path to library build directory (created by the "build" subcommand)')
+    analyze.add_argument('binary'      , metavar='BINARY'            , help='binary of the built library (e.g. shared object)')
+    analyze.add_argument('out_path'    , metavar='OUTPUT_PATH'       , help='output directory (created if needed)')
 
     return parser.parse_args()
 
@@ -65,8 +68,10 @@ def setup_logging(level):
 
     # Set these to warning to reduce noise
     logging.getLogger('angr').setLevel(logging.WARNING)
+    logging.getLogger('claripy').setLevel(logging.WARNING)
     logging.getLogger('cle').setLevel(logging.WARNING)
     logging.getLogger('pyvex').setLevel(logging.WARNING)
+    logging.getLogger('asyncio').setLevel(logging.WARNING)
 
     logging.basicConfig(level=level, format=fmt)
     logging.setLogRecordFactory(record_factory)
@@ -85,23 +90,30 @@ def build(library_path, out_db_path, build_command, clean_command=None):
     logger.info('Database built at "%s"', out_db_path)
 
     logger.info('Extracting function pointers from CodeQL database')
-    fptrs = find_function_pointers(out_db_path)
+    fptrs = extract_function_pointers(out_db_path)
 
     logger.info('Replacing calls to function pointers in library source')
-    modified_library_path = replace_calls(library_path, fptrs)
+    new_path = Path(replace_calls(library_path, fptrs))
 
     if clean_command is not None:
         logger.info('Cleaning library')
-        ensure_command(clean_command, cwd=modified_library_path)
+        ensure_command(clean_command, cwd=new_path)
 
     logger.info('Re-building modified library')
-    ensure_command(build_command, cwd=modified_library_path)
-    logger.info('Done! Built library at "%s"', modified_library_path)
+    ensure_command(build_command, cwd=new_path)
 
-
-def analyze(db_path, binary_path, out_path):
     logger.info('Extracting function pointers from CodeQL database')
-    fptrs = find_function_pointers(db_path)
+    extract_function_pointers(db_path, new_path / '.symex_fptrs')
+
+    logger.info('Extracting struct definitions from CodeQL database')
+    extract_structs(db_path, new_path / '.symex_structs')
+
+    print('Built library at %s', new_path)
+
+
+def analyze(db_path, built_library_path, binary_path, out_path):
+    fptrs   = extract_function_pointers(db_path, built_library_path / '.symex_fptrs')
+    structs = extract_structs(db_path, built_library_path / '.symex_structs')
 
     logger.info('Analyzing library "%s"', binary_path)
     out_path.mkdir(exist_ok=True)
@@ -113,16 +125,15 @@ def analyze(db_path, binary_path, out_path):
             for exported_func, signature in funcs:
                 target_func = f"TARGET_{fptr}_{fptr_idx}"
 
-                symex_out_file = out_path / (exported_func + '_' + target_func + '.txt')
+                symex_out_file = out_path / (f'{total:03d}_{exported_func}_{target_func}.txt')
                 logger.info(f"[{total}] Starting symbolic execution of function {exported_func}, target is {target_func}")
+
+                symex(exported_func, target_func, signature, structs, binary_path, symex_out_file)
                 total += 1
-
-                symex(exported_func, target_func, signature, binary_path, symex_out_file)
-
 
 def main():
     args = parse_arguments()
-    setup_logging(logging.INFO)
+    setup_logging(logging.DEBUG if args.verbose else logging.INFO)
 
     db = Path(args.db_path).absolute()
 
@@ -130,9 +141,10 @@ def main():
         lib = Path(args.library_path).absolute()
         build(lib, db, args.build_command, args.clean_command)
     else:
+        lib  = Path(args.library_path)
         lbin = Path(args.binary)
         out = Path(args.out_path)
-        analyze(db, lbin, out)
+        analyze(db, lib, lbin, out)
 
 
 if __name__ == '__main__':

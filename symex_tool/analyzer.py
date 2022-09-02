@@ -1,9 +1,11 @@
 import angr
 import claripy
+from typing import List, Union
 from angr.sim_type import SimTypeFunction
 
 from .exception import SectionException
-from .variable import Variable
+from .variable import Variable, Pointer
+from .memory import CustomMemory
 
 class Analyzer:
     BASE_ADDR = 0x000000
@@ -74,14 +76,20 @@ class Analyzer:
                 args.append(arg_value)
         return args
 
-    def symbolically_execute(self, parameters: list[Variable]):
+    def symbolically_execute(self, parameters: List[Union[Variable,Pointer]]):
         """ Setup symbolic execution and search a path to the target function. Then, print the values of the parameters. """
         self.args = []
+        ptrs = []
+
         for param in parameters:
-            if param.concrete:
-                self.args.append(claripy.BVV(param.value, param.size * 8))
+            if isinstance(param, Pointer):
+                self.args.append(param.bv)
+                ptrs.append(param)
             else:
-                self.args.append(claripy.BVS(param.name, param.size * 8))
+                if param.concrete:
+                    self.args.append(claripy.BVV(param.value, param.size * 8))
+                else:
+                    self.args.append(claripy.BVS(param.name, param.size * 8))
 
         function_addr = self.proj.loader.find_symbol(self.function_name).rebased_addr
         target_addr = self.proj.loader.find_symbol(self.target_function).rebased_addr
@@ -91,7 +99,9 @@ class Analyzer:
             angr.options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS
         }
 
-        # State memory setup
+        mem = CustomMemory(memory_id='mem', project=self.proj, tracked_ptrs=ptrs)
+        for x in mem.tracked:
+            print(x)
 
         prototype = SimTypeFunction([], None)
         state = self.proj.factory.call_state(
@@ -99,14 +109,15 @@ class Analyzer:
             *self.args,
             add_options=state_options,
             cc=self.proj.factory.cc(),
-            prototype=prototype
+            prototype=prototype,
+            plugins={'memory': mem}
         )
 
         self.__make_section_symbolic('.bss', state)
         self.__make_section_symbolic('.data', state)
 
         simgr = self.proj.factory.simulation_manager(state)
-        # simgr.use_technique(tech=angr.exploration_techniques.veritesting.Veritesting())
+        simgr.use_technique(tech=angr.exploration_techniques.veritesting.Veritesting())
         simgr.explore(find=target_addr)
 
         if len(simgr.found) > 0:
