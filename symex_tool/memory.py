@@ -2,7 +2,7 @@ import angr
 import claripy
 import logging
 from copy import deepcopy
-from typing import Dict, Iterable
+from typing import Dict, Iterable, List
 from angr.storage.memory_mixins import DefaultMemory
 
 
@@ -13,7 +13,7 @@ logger = logging.getLogger('memory')
 
 class CustomMemory(DefaultMemory):
     alloc_base: int
-    tracked   : list[Pointer]
+    tracked   : List[Pointer]
 
     def __init__(self, *a, **kwa):
         self.alloc_base = 0xf00f000000000000
@@ -66,6 +66,11 @@ class CustomMemory(DefaultMemory):
             logger.debug('Symbolic load: %r', addr)
         return super().load(addr, size=size, condition=condition, fallback=fallback, **kwa)
 
+    def store(self, addr, data, size=None, condition=None, fallback=None, **kwa):
+        if type(addr) is not int and not addr.concrete:
+            logger.debug('Symbolic STORE: %r', addr)
+        return super().store(addr, data, size=size, condition=condition, fallback=fallback, **kwa)
+
     def store(self, *a, **kwa):
         return super().store(*a, **kwa)
 
@@ -78,9 +83,9 @@ class CustomMemory(DefaultMemory):
         solver = self.state.solver
 
         if addr.concrete:
-            logger.error('Trying to concretize a concrete address??? %r', addr)
+            logger.error('Trying to concretize a concrete read address??? %r', addr)
         else:
-            logger.debug('Trying to concretize read at %r', addr)
+            # logger.debug('Trying to concretize read at %r', addr)
 
             for ptr in self.tracked:
                 off = solver.eval(addr - (ptr.bv if ptr.value is None else ptr.value))
@@ -88,10 +93,10 @@ class CustomMemory(DefaultMemory):
                     break
             else:
                 ptr = None
-                logger.debug('No matching tracked pointers')
+                # logger.debug('No matching tracked pointers')
 
             if ptr is not None:
-                logger.debug('Deref %r offset %r', ptr, off)
+                logger.debug('Deref read %r offset %s', ptr, hex(off) if type(off) is int else repr(off))
 
                 if ptr.value is None:
                     ptr.value = self.__allocate_object(ptr, off)
@@ -117,6 +122,39 @@ class CustomMemory(DefaultMemory):
                 return [read_addr]
 
         return super().concretize_read_addr(addr, strategies=strategies, condition=condition)
+
+    def concretize_write_addr(self, addr: claripy.BV, strategies=None, condition=None):
+        assert self.tracked is not None
+
+        # NOTE: Careful! Comparisons and other operations on BVs have side effects!
+        #       E.G. stuff like `if some_bv: ...` or `some_bv == whatever`
+
+        solver = self.state.solver
+
+        if addr.concrete:
+            logger.error('Trying to concretize a concrete WRITE address??? %r', addr)
+        else:
+            # logger.debug('Trying to concretize WRITE at %r', addr)
+
+            for ptr in self.tracked:
+                off = solver.eval(addr - (ptr.bv if ptr.value is None else ptr.value))
+                if 0 <= off < ptr.size:
+                    break
+            else:
+                ptr = None
+                # logger.debug('No matching tracked pointers')
+
+            if ptr is not None:
+                logger.debug('Deref WRITE %r offset %r', ptr, hex(off) if type(off) is int else repr(off))
+
+                if ptr.value is None:
+                    ptr.value = self.__allocate_object(ptr, off)
+
+                write_addr = ptr.value + off
+                logger.debug('Concretized to 0x%x', write_addr)
+                return [write_addr]
+
+        return super().concretize_write_addr(addr, strategies=strategies, condition=condition)
 
     def eval_tracked_objects(self):
         solver = self.state.solver
