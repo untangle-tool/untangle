@@ -1,4 +1,5 @@
 import claripy
+from typing import List
 from copy import deepcopy
 
 class Variable:
@@ -24,14 +25,14 @@ class Pointer:
         self.fields = fields
         self.value  = None # Address to assign if/when concretized
 
-        # Bitvector for symbolic execution
+        # Pointer as a bitvector for symbolic execution
         self.bv = claripy.BVS(f'ptr_{self.name}_{id(self)}', 64)
 
     def __repr__(self):
         v = hex(self.value) if self.value is not None else None
         return f'<Pointer to {self.name!r}, bv={self.bv!r}, size=0x{self.size:x}, value={v}>'
 
-    def flatten(self) -> list['Pointer']:
+    def flatten(self) -> List['Pointer']:
         res = [self]
         for field in self.fields.values():
             if isinstance(field, self.__class__):

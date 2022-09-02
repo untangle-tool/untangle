@@ -37,7 +37,7 @@ def setup_logging(level):
     orig_factory = logging.getLogRecordFactory()
 
     if os.isatty(sys.stderr.fileno()):
-        fmt = '%(color)s[%(name)s:%(levelname)s] %(message)s%(color_reset)s'
+        fmt = '%(color)s[%(levelname)s:%(name)s] %(message)s%(color_reset)s'
         level_colors = {
             logging.CRITICAL: '\x1b[1;31m',
             logging.ERROR   : '\x1b[31m',
@@ -54,7 +54,7 @@ def setup_logging(level):
             record.levelname = 'FATAL' if lvl == logging.CRITICAL else record.levelname
             return record
     else:
-        fmt = '[%(name)s:%(levelname)s] %(message)s'
+        fmt = '[%(levelname)s:%(name)s] %(message)s'
 
         def record_factory(*args, **kwargs):
             record = orig_factory(*args, **kwargs)

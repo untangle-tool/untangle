@@ -1,11 +1,19 @@
+import os
+import time
 import angr
 import claripy
+import psutil
+import logging
 from typing import List, Union
 from angr.sim_type import SimTypeFunction
 
 from .exception import SectionException
 from .variable import Variable, Pointer
 from .memory import CustomMemory
+
+
+logger = logging.getLogger('analyzer')
+
 
 class Analyzer:
     BASE_ADDR = 0x000000
@@ -34,7 +42,7 @@ class Analyzer:
 
         return global_constraints
 
-    def parse_constraints(self, constraints: list[str]):
+    def parse_constraints(self, constraints: List[str]):
         """ Parse the constraints and return a list of tuples containing section, size and address. """
         parsed_constraints = []
         for c in constraints:
@@ -76,7 +84,7 @@ class Analyzer:
                 args.append(arg_value)
         return args
 
-    def symbolically_execute(self, parameters: List[Union[Variable,Pointer]]):
+    def symbolically_execute(self, parameters: List[Union[Variable,Pointer]], timeout: int = None, max_mem: int = None):
         """ Setup symbolic execution and search a path to the target function. Then, print the values of the parameters. """
         self.args = []
         ptrs = []
@@ -100,8 +108,6 @@ class Analyzer:
         }
 
         mem = CustomMemory(memory_id='mem', project=self.proj, tracked_ptrs=ptrs)
-        for x in mem.tracked:
-            print(x)
 
         prototype = SimTypeFunction([], None)
         state = self.proj.factory.call_state(
@@ -113,14 +119,40 @@ class Analyzer:
             plugins={'memory': mem}
         )
 
+        if angr.options.ALL_FILES_EXIST in state.options:
+            state.options.remove(angr.options.ALL_FILES_EXIST)
+
         self.__make_section_symbolic('.bss', state)
         self.__make_section_symbolic('.data', state)
 
         simgr = self.proj.factory.simulation_manager(state)
-        simgr.use_technique(tech=angr.exploration_techniques.veritesting.Veritesting())
-        simgr.explore(find=target_addr)
+        # simgr.use_technique(tech=angr.exploration_techniques.veritesting.Veritesting())
+        # simgr.use_technique(tech=angr.exploration_techniques.DFS())
+        start = time.monotonic()
 
-        if len(simgr.found) > 0:
+        while 1:
+            try:
+                simgr.explore(find=target_addr, n=1)
+            except angr.errors.SimUnsatError as e:
+                logger.error('Angr reported SimUnsatError: %r', e)
+                return None
+            except ReferenceError as e:
+                logger.error('ReferenceError during sym execution: %r', e)
+                return None
+
+            if simgr.found:
+                break
+
+            if timeout is not None:
+                if (time.monotonic() - start) > timeout:
+                    logger.error('Exceeded maximum execution time, aborting')
+                    return None
+
+            if max_mem is not None:
+                if psutil.Process(os.getpid()).memory_info().rss > max_mem:
+                    logger.error('Exceeded maximum memory usage, aborting')
+                    return None
+
+        if simgr.found:
             return simgr.found[0]
-        else:
-            return None
+        return None

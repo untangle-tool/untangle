@@ -70,9 +70,12 @@ def parse_signature(signature: str, structs: dict) -> List[Variable]:
 
 def symex(fn_name: str, target_fn_name: str, signature: str, structs: dict, binary: str, out_file: str):
     params = parse_signature(signature, structs)
-
     analyzer = Analyzer(binary, fn_name, target_fn_name)
     execute = True
+
+    # TODO: maybe take these as parameters
+    timeout = 15 * 60 # 15 min
+    max_mem = 16 * 1000 * 1000 * 1000 # 16GB
 
     with open(out_file, 'w') as f:
         if any(param.size is None for param in params):
@@ -82,10 +85,10 @@ def symex(fn_name: str, target_fn_name: str, signature: str, structs: dict, bina
                 if param.size is None:
                     f.write(f"\t[!] Unknown type {param.type}\n")
 
-        start = time.time()
+        start = time.monotonic()
         while execute:
             f.write(f"[+] Starting symbolic execution of function {fn_name}\n")
-            found = analyzer.symbolically_execute(params)
+            found = analyzer.symbolically_execute(params, timeout, max_mem)
             # TODO: CustomMemory.eval_tracked_objects()
 
             execute = False
@@ -137,5 +140,5 @@ def symex(fn_name: str, target_fn_name: str, signature: str, structs: dict, bina
             else:
                 f.write("[!] No solution could be found.\n")
 
-        end = time.time()
+        end = time.monotonic()
         f.write(f"[+] Symbolic execution of function {fn_name} completed in {end - start} seconds.")
