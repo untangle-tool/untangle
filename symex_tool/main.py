@@ -120,13 +120,16 @@ def analyze(db_path, built_library_path, binary_path, out_path):
 
     logger.info('Analyzing library "%s"', binary_path)
     out_path.mkdir(exist_ok=True)
-    n = len(fptrs)
 
-    for i, (fptr, call_loc, call_id, exported_func, signature) in enumerate(fptrs, 1):
-        target_func = f"TARGET_{fptr}_{call_id}"
-        symex_out_file = out_path / (f'{i:03d}_{exported_func}_{target_func}.txt')
-        logger.info(f"[{i}/{n}] Starting symbolic execution of {exported_func}, target is {target_func}, original call at {call_loc!r}")
-        symex(exported_func, target_func, signature, structs, binary_path, symex_out_file)
+    exported_funcs = {}
+    for _, _, _, name, signature in fptrs:
+        exported_funcs[name] = signature
+    n = len(exported_funcs)
+
+    for i, (exported_func, signature) in enumerate(exported_funcs.items(), 1):
+        logger.info('[%d/%d] Starting symbolic execution of %s', i, n, exported_func)
+        symex_out_file = out_path / (exported_func + '.txt')
+        symex(exported_func, signature, structs, binary_path, symex_out_file)
 
 
 def main():

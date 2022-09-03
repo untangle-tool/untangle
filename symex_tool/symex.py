@@ -72,13 +72,14 @@ def parse_signature(signature: str, structs: dict) -> List[Variable]:
     return res
 
 
-def symex(fn_name: str, target_fn_name: str, signature: str, structs: dict, binary: str, out_file: str):
+def symex(fn_name: str, signature: str, structs: dict, binary: str, out_file: str):
     params = parse_signature(signature, structs)
-    analyzer = Analyzer(binary, fn_name, target_fn_name)
+    analyzer = Analyzer(binary, fn_name)
     execute = True
 
     # TODO: maybe take these as parameters
-    timeout = 15 * 60 # 15 min
+    # timeout = 15 * 60 # 15 min
+    timeout = None
     max_mem = 16 * 1000 * 1000 * 1000 # 16GB
 
     with open(out_file, 'w') as f:

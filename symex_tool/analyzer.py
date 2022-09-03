@@ -16,15 +16,25 @@ logger = logging.getLogger('analyzer')
 
 
 class Analyzer:
-    BASE_ADDR = 0x000000
+    BASE_ADDR = 0x400000
 
-    def __init__(self, binary_name: str, function_name: str, target_function: str):
+    def __init__(self, binary_name: str, function_name: str):
         self.binary_name = binary_name
         self.function_name = function_name
-        self.target_function = target_function
+        self.symbolic_sections = []
 
         self.proj = angr.Project(f'./{self.binary_name}', main_opts={'base_addr': self.BASE_ADDR})
-        self.symbolic_sections = []
+        self.target_addrs = set()
+        self.targets = {}
+
+        for sym in self.proj.loader.symbols:
+            if not sym.name.startswith('SYMEX_TARGET_'):
+                continue
+
+            self.target_addrs.add(sym.rebased_addr)
+            self.targets[sym.rebased_addr] = sym.name
+
+        self.target_addrs = list(self.target_addrs)
 
     def __make_section_symbolic(self, section_name: str, state: angr.sim_state.SimState):
         section = claripy.BVS(section_name, self.proj.loader.main_object.sections_map[section_name].memsize * 8)
@@ -102,7 +112,6 @@ class Analyzer:
                     self.args.append(claripy.BVS(param.name, param.size * 8))
 
         function_addr = self.proj.loader.find_symbol(self.function_name).rebased_addr
-        target_addr = self.proj.loader.find_symbol(self.target_function).rebased_addr
 
         state_options = {
             angr.options.SYMBOL_FILL_UNCONSTRAINED_MEMORY,
@@ -128,13 +137,13 @@ class Analyzer:
         self.__make_section_symbolic('.data', state)
 
         simgr = self.proj.factory.simulation_manager(state)
-        # simgr.use_technique(tech=angr.exploration_techniques.veritesting.Veritesting())
+        simgr.use_technique(angr.exploration_techniques.veritesting.Veritesting())
         # simgr.use_technique(tech=angr.exploration_techniques.DFS())
         start = time.monotonic()
 
         while 1:
             try:
-                simgr.explore(find=target_addr, n=1)
+                simgr.explore(find=self.target_addrs, n=1)
             except angr.errors.SimUnsatError as e:
                 logger.error('Angr reported SimUnsatError: %r', e)
                 return None
