@@ -1,6 +1,7 @@
 import sys
 import pickle
 import logging
+from ctypes import CDLL
 from pathlib import Path
 from textwrap import indent
 from typing import Union, Iterable, Any
@@ -53,3 +54,10 @@ def restore_object(fname: Union[Path,str]) -> Any:
         return None
     except EOFError:
         return None
+
+
+def malloc_trim():
+    try:
+        CDLL('libc.so.6').malloc_trim(0)
+    except:
+        pass

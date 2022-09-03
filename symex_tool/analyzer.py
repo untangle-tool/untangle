@@ -10,7 +10,7 @@ from angr.sim_type import SimTypeFunction
 from .exception import SectionException
 from .variable import Variable, Pointer
 from .memory import CustomMemory
-
+from .utils import malloc_trim
 
 logger = logging.getLogger('analyzer')
 
@@ -89,6 +89,8 @@ class Analyzer:
         self.args = []
         ptrs = []
 
+        malloc_trim()
+
         for param in parameters:
             if isinstance(param, Pointer):
                 self.args.append(param.bv)
@@ -147,6 +149,8 @@ class Analyzer:
                 if (time.monotonic() - start) > timeout:
                     logger.error('Exceeded maximum execution time, aborting')
                     return None
+
+            malloc_trim()
 
             if max_mem is not None:
                 if psutil.Process(os.getpid()).memory_info().rss > max_mem:
