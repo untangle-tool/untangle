@@ -24,9 +24,6 @@ def build_codeql_db(library_path, out_db_path, build_command):
 def run_codeql_query(db_path, query):
     '''Run a CodeQL query and return results as a list of tuples.
     '''
-
-    n_cores = max(len(os.sched_getaffinity(0)) - 1, 1)
-
     with TemporaryDirectory(prefix='codeql-query-') as tmpdir:
         tmpdir     = Path(tmpdir)
         query_path = tmpdir / 'query.ql'
@@ -41,7 +38,7 @@ def run_codeql_query(db_path, query):
         query_file.flush()
         pack_file.write('name: whatever\nversion: 0.0.0\nextractor: cpp\nlibraryPathDependencies: codeql/cpp-all')
         pack_file.flush()
-        cmd = ['codeql', 'query', 'run', f'-j{n_cores}', '-d', db_path, query_path.as_posix()]
+        cmd = ['codeql', 'query', 'run', '-d', db_path, query_path.as_posix()]
 
         p = Popen(cmd, stdout=out_file, stderr=PIPE)
         exit_code = p.wait()
