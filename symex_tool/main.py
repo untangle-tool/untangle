@@ -2,6 +2,7 @@ import os
 import sys
 import argparse
 import logging
+import shutil
 from pathlib import Path
 
 from .codeql import build_codeql_db
@@ -19,10 +20,9 @@ def parse_arguments():
 
     sub = parser.add_subparsers(dest='subcommand')
     build = sub.add_parser('build', description='Build the given library and a CodeQL database for subsequent analysis')
-    build.add_argument('library_path' , metavar='LIBRARY_PATH'  , help='path to library source directory')
-    build.add_argument('db_path'      , metavar='OUT_DB_NAME'   , help='name of the CodeQL database to create')
-    build.add_argument('build_command', metavar='BUILD_COMMAND' , help='command to use to build the libray')
-    build.add_argument('clean_command', metavar='CLEAN_COMMAND' , nargs='?', default=None, help='Command to use to clean library sources before re-building')
+    build.add_argument('library_path' , metavar='LIBRARY_PATH' , help='path to library source directory')
+    build.add_argument('db_path'      , metavar='OUT_DB_NAME'  , help='name of the CodeQL database to create')
+    build.add_argument('build_command', metavar='BUILD_COMMAND', help='command to use to build the libray')
 
     analyze = sub.add_parser('analyze' , description='Run a complete analysis of a previously built library')
     analyze.add_argument('library_path', metavar='BUILT_LIBRARY_PATH', help='path to library build directory (created by the "build" subcommand)')
@@ -77,41 +77,47 @@ def setup_logging(level):
     # solutions. Likely unconstrained; skipping."
     logging.getLogger('angr.engines.successors').setLevel(logging.ERROR)
 
+    # The program is accessing register with an unspecified value. BLABLABLA...
+    logging.getLogger('angr.storage.memory_mixins.default_filler_mixin').setLevel(logging.ERROR)
+
     logging.basicConfig(level=level, format=fmt)
     logging.setLogRecordFactory(record_factory)
 
 
-def build(library_path, out_db_path, build_command, clean_command=None):
+def build(library_path, out_db_path, build_command):
     '''Build library at the given source directory path using build_command and
     create a CodeQL database for it.
     '''
-    if clean_command is not None:
-        logger.info('Cleaning original library')
-        ensure_command(clean_command, cwd=library_path)
+    # Create a copy of the source code. If it already exists, delete it and
+    # create a new one.
+    new_library_path = Path(str(library_path) + '_build')
+    if not os.path.exists(new_library_path):
+        shutil.copytree(library_path, new_library_path)
+    else:
+        shutil.rmtree(new_library_path)
+        shutil.copytree(library_path, new_library_path)
+
+    logger.info('Library copy created at %s', new_library_path)
 
     logger.info('Building original library and CodeQL database')
     build_codeql_db(library_path, out_db_path, build_command)
     logger.info('Database built at "%s"', out_db_path)
 
-    if clean_command is not None:
-        logger.info('Cleaning original library')
-        ensure_command(clean_command, cwd=library_path)
-
     logger.info('Extracting function pointers from CodeQL database')
     fptrs = extract_function_pointers(out_db_path)
 
-    logger.info('Replacing calls to function pointers in library source')
-    new_path = Path(replace_calls(library_path, fptrs))
+    logger.info('Replacing calls to function pointers in copied library source')
+    replace_calls(new_library_path, fptrs)
 
-    logger.info('Re-building modified library')
-    ensure_command(build_command, cwd=new_path)
+    logger.info('Re-building library copy')
+    ensure_command(build_command, cwd=new_library_path)
 
-    save_object(fptrs, new_path / '.symex_fptrs')
+    save_object(fptrs, new_library_path / '.symex_fptrs')
 
     logger.info('Extracting struct definitions from CodeQL database')
-    extract_structs(out_db_path, new_path / '.symex_structs')
+    extract_structs(out_db_path, new_library_path / '.symex_structs')
 
-    print('Built library at', new_path)
+    print('Built library ready at', new_library_path)
 
 
 def analyze(db_path, built_library_path, binary_path, out_path):
@@ -140,7 +146,7 @@ def main():
 
     if args.subcommand == 'build':
         lib = Path(args.library_path).absolute()
-        build(lib, db, args.build_command, args.clean_command)
+        build(lib, db, args.build_command)
     else:
         lib  = Path(args.library_path)
         lbin = Path(args.binary)

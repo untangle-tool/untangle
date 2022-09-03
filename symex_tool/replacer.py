@@ -1,5 +1,4 @@
 import os
-import shutil
 import logging
 from collections import defaultdict
 
@@ -27,26 +26,15 @@ def monoline_function_call(line: str):
 
 def generate_fn_definition(func_ptr: str, call_id: int, actual_call: str):
     return [
-        f"#define WRAPPER_{func_ptr}_{call_id}(...) (TARGET_{func_ptr}_{call_id}(), ({{{actual_call}(__VA_ARGS__);}}))\n",
-        f"static int NOOPT_TARGET_{func_ptr}_{call_id} = 0;\n",
-        f"void __attribute__((noinline)) TARGET_{func_ptr}_{call_id}(void){{\n",
-        f"\tNOOPT_TARGET_{func_ptr}_{call_id} = 1;\n",
+        f"#define SYMEX_WRAPPER_{func_ptr}_{call_id}(...) (SYMEX_TARGET_{func_ptr}_{call_id}(), ({{{actual_call}(__VA_ARGS__);}}))\n",
+        f"unsigned SYMEX_NOOPT_TARGET_{func_ptr}_{call_id} = 0;\n",
+        f"void __attribute__((noinline)) SYMEX_TARGET_{func_ptr}_{call_id}(void){{\n",
+        f"\tSYMEX_NOOPT_TARGET_{func_ptr}_{call_id}++;\n",
         "}\n",
     ]
 
 
 def replace_calls(lib_src_path, function_pointers):
-    built_lib_src_path = str(lib_src_path) + '_build'
-
-    # Create a copy of the source code. If it already exists, delete it and create a new one.
-    if not os.path.exists(built_lib_src_path):
-        shutil.copytree(lib_src_path, built_lib_src_path)
-    else:
-        shutil.rmtree(built_lib_src_path)
-        shutil.copytree(lib_src_path, built_lib_src_path)
-
-    logger.debug('Library copy created at %s', built_lib_src_path)
-
     number_lines_added = defaultdict(int)
     seen = set()
 
@@ -57,7 +45,7 @@ def replace_calls(lib_src_path, function_pointers):
         seen.add(call_id)
 
         file_name = call_loc[0]
-        file_path = os.path.join(built_lib_src_path, file_name)
+        file_path = os.path.join(lib_src_path, file_name)
         start_line, start_column, end_line, end_column = call_loc[1:]
 
         with open(file_path, "r") as f:
@@ -81,10 +69,10 @@ def replace_calls(lib_src_path, function_pointers):
 
         # Replace only the characters between "start_column" and the first parenthesis found.
         if first_parenthesis != -1:
-            file_lines[line_no] = file_lines[line_no][:start_column-1] + f"WRAPPER_{func_ptr}_{call_id}" + file_lines[line_no][first_parenthesis:]
+            file_lines[line_no] = file_lines[line_no][:start_column-1] + f"SYMEX_WRAPPER_{func_ptr}_{call_id}" + file_lines[line_no][first_parenthesis:]
         else:
             # If no parenthesis is found, add also an empty couple of parentheses, a semi-colon and a newline.
-            file_lines[line_no] = file_lines[line_no][:start_column-1] + f"WRAPPER_{func_ptr}_{call_id}();\n"
+            file_lines[line_no] = file_lines[line_no][:start_column-1] + f"SYMEX_WRAPPER_{func_ptr}_{call_id}();\n"
 
         # If the call is on one line and there is no semi-colon, add one.
         if monoline_function_call(file_lines[line_no]) and not ';\n' in file_lines[line_no]:
@@ -95,5 +83,3 @@ def replace_calls(lib_src_path, function_pointers):
 
         # A little bit too verbose
         # logger.debug(f"Function pointer {func_ptr} replaced with a wrapper to TARGET_{func_ptr}_{call_id} in {file_path}")
-
-    return built_lib_src_path
