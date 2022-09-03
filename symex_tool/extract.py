@@ -87,11 +87,12 @@ def parse_struct_ptr(name: str, structs: Dict[str,Struct]) -> Pointer:
     return root
 
 
-def extract_structs(codeql_db_path, cache_fname):
-    res = restore_object(cache_fname)
-    if res is not None:
-        logger.debug('Restored structs from cache: %s', cache_fname)
-        return res
+def extract_structs(codeql_db_path, cache_fname=None):
+    if cache_fname is not None:
+        res = restore_object(cache_fname)
+        if res is not None:
+            logger.debug('Restored structs from cache: %s', cache_fname)
+            return res
 
     logger.debug('Extracting structs from CodeQL DB "%s"', codeql_db_path)
     res = run_codeql_query(codeql_db_path, STRUCTS_QUERY)
@@ -107,15 +108,19 @@ def extract_structs(codeql_db_path, cache_fname):
             structs[s].fields.append(StructField(fname, ftype, foff, fsize))
 
     logger.debug('Found %d unique structs', len(structs))
-    save_object(structs, cache_fname)
+
+    if cache_fname is not None:
+        save_object(structs, cache_fname)
+
     return structs
 
 
-def extract_function_pointers(codeql_db_path, cache_fname):
-    res = restore_object(cache_fname)
-    if res is not None:
-        logger.debug('Restored function pointers from cache: %s', cache_fname)
-        return res
+def extract_function_pointers(codeql_db_path, cache_fname=None):
+    if cache_fname is not None:
+        res = restore_object(cache_fname)
+        if res is not None:
+            logger.debug('Restored function pointers from cache: %s', cache_fname)
+            return res
 
     logger.debug('Extracting global function pointers from CodeQL DB "%s"', codeql_db_path)
     rows = run_codeql_query(codeql_db_path, FUNC_PTRS_QUERY)
@@ -127,26 +132,26 @@ def extract_function_pointers(codeql_db_path, cache_fname):
         fptr_decls[name] = decl_loc
         fptr_calls[name][tuple(call_loc)].append((exported_func, exported_loc, sig))
 
-    # {func_ptr_name: {call_loc: [(exported_func, signature), ...]}}
-    res = {}
+    # [(func_ptr_name, call_loc, exported_func, signature)]
+    res = []
+    seen_locs = set()
 
     for name, decl_loc in fptr_decls.items():
         calls = fptr_calls[name]
 
         for call_loc in calls:
-            caller, *loc = call_loc
-            loc = tuple(loc)
+            caller, file, *loc_in_file = call_loc
+            loc = (file,) + tuple(map(int, loc_in_file))
+
+            if loc not in seen_locs:
+                seen_locs.add(loc)
 
             for exp_func, exp_loc, sig in calls[call_loc]:
-                if name not in res:
-                    res[name] = {}
+                res.append((name, loc, len(seen_locs) - 1, exp_func, sig))
 
-                if loc not in res[name]:
-                    res[name][loc] = []
+    if cache_fname is not None:
+        save_object(res, cache_fname)
 
-                res[name][loc].append((exp_func, sig))
-
-    save_object(res, cache_fname)
     return res
 
 ################################################################################

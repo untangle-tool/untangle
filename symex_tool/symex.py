@@ -38,6 +38,10 @@ def parse_signature(signature: str, structs: dict) -> List[Variable]:
     signature = signature.split(', ')
 
     for i, param in enumerate(signature):
+        if param[-1] == ']':
+            # Turn `type[n]` into `type *`
+            param = param[:param.rfind('[')] + ' *'
+
         typ = param.replace('*', '').strip()
 
         if param == 'void':
@@ -141,4 +145,4 @@ def symex(fn_name: str, target_fn_name: str, signature: str, structs: dict, bina
                 f.write("[!] No solution could be found.\n")
 
         end = time.monotonic()
-        f.write(f"[+] Symbolic execution of function {fn_name} completed in {end - start} seconds.")
+        f.write(f"[+] Symbolic execution of function {fn_name} completed in {end - start:.0f} seconds.\n")

@@ -8,7 +8,7 @@ from .codeql import build_codeql_db
 from .extract import extract_function_pointers, extract_structs
 from .replacer import replace_calls
 from .symex import symex
-from .utils import ensure_command
+from .utils import ensure_command, save_object
 
 logger = logging.getLogger('main')
 
@@ -25,8 +25,8 @@ def parse_arguments():
     build.add_argument('clean_command', metavar='CLEAN_COMMAND' , nargs='?', default=None, help='Command to use to clean library sources before re-building')
 
     analyze = sub.add_parser('analyze' , description='Run a complete analysis of a previously built library')
-    analyze.add_argument('db_path'     , metavar='CODEQL_DB_PATH'    , help='path to CodeQL database for the library')
     analyze.add_argument('library_path', metavar='BUILT_LIBRARY_PATH', help='path to library build directory (created by the "build" subcommand)')
+    analyze.add_argument('db_path'     , metavar='CODEQL_DB_PATH'    , help='path to CodeQL database for the library')
     analyze.add_argument('binary'      , metavar='BINARY'            , help='binary of the built library (e.g. shared object)')
     analyze.add_argument('out_path'    , metavar='OUTPUT_PATH'       , help='output directory (created if needed)')
 
@@ -73,6 +73,10 @@ def setup_logging(level):
     logging.getLogger('pyvex').setLevel(logging.WARNING)
     logging.getLogger('asyncio').setLevel(logging.WARNING)
 
+    # This gets too noisy complaining that "Exit state has over 256 possible
+    # solutions. Likely unconstrained; skipping."
+    logging.getLogger('angr.engines.successors').setLevel(logging.ERROR)
+
     logging.basicConfig(level=level, format=fmt)
     logging.setLogRecordFactory(record_factory)
 
@@ -89,26 +93,25 @@ def build(library_path, out_db_path, build_command, clean_command=None):
     build_codeql_db(library_path, out_db_path, build_command)
     logger.info('Database built at "%s"', out_db_path)
 
+    if clean_command is not None:
+        logger.info('Cleaning original library')
+        ensure_command(clean_command, cwd=library_path)
+
     logger.info('Extracting function pointers from CodeQL database')
     fptrs = extract_function_pointers(out_db_path)
 
     logger.info('Replacing calls to function pointers in library source')
     new_path = Path(replace_calls(library_path, fptrs))
 
-    if clean_command is not None:
-        logger.info('Cleaning library')
-        ensure_command(clean_command, cwd=new_path)
-
     logger.info('Re-building modified library')
     ensure_command(build_command, cwd=new_path)
 
-    logger.info('Extracting function pointers from CodeQL database')
-    extract_function_pointers(db_path, new_path / '.symex_fptrs')
+    save_object(fptrs, new_path / '.symex_fptrs')
 
     logger.info('Extracting struct definitions from CodeQL database')
-    extract_structs(db_path, new_path / '.symex_structs')
+    extract_structs(out_db_path, new_path / '.symex_structs')
 
-    print('Built library at %s', new_path)
+    print('Built library at', new_path)
 
 
 def analyze(db_path, built_library_path, binary_path, out_path):
@@ -117,19 +120,14 @@ def analyze(db_path, built_library_path, binary_path, out_path):
 
     logger.info('Analyzing library "%s"', binary_path)
     out_path.mkdir(exist_ok=True)
+    n = len(fptrs)
 
-    total = 1
-    for fptr, calls in fptrs.items():
-        fptr_idx = 0
-        for call_loc, funcs in calls.items():
-            for exported_func, signature in funcs:
-                target_func = f"TARGET_{fptr}_{fptr_idx}"
+    for i, (fptr, call_loc, call_id, exported_func, signature) in enumerate(fptrs, 1):
+        target_func = f"TARGET_{fptr}_{call_id}"
+        symex_out_file = out_path / (f'{i:03d}_{exported_func}_{target_func}.txt')
+        logger.info(f"[{i}/{n}] Starting symbolic execution of {exported_func}, target is {target_func}, original call at {call_loc!r}")
+        symex(exported_func, target_func, signature, structs, binary_path, symex_out_file)
 
-                symex_out_file = out_path / (f'{total:03d}_{exported_func}_{target_func}.txt')
-                logger.info(f"[{total}] Starting symbolic execution of function {exported_func}, target is {target_func}")
-
-                symex(exported_func, target_func, signature, structs, binary_path, symex_out_file)
-                total += 1
 
 def main():
     args = parse_arguments()
