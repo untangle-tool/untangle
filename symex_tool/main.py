@@ -37,7 +37,7 @@ def setup_logging(level):
     orig_factory = logging.getLogRecordFactory()
 
     if os.isatty(sys.stderr.fileno()):
-        fmt = '%(color)s[%(levelname)s:%(name)s] %(message)s%(color_reset)s'
+        fmt = '%(asctime)s %(color)s[%(levelname)s:%(name)s] %(message)s%(color_reset)s'
         level_colors = {
             logging.CRITICAL: '\x1b[1;31m',
             logging.ERROR   : '\x1b[31m',
@@ -54,7 +54,7 @@ def setup_logging(level):
             record.levelname = 'FATAL' if lvl == logging.CRITICAL else record.levelname
             return record
     else:
-        fmt = '[%(levelname)s:%(name)s] %(message)s'
+        fmt = '%(asctime)s [%(levelname)s:%(name)s] %(message)s'
 
         def record_factory(*args, **kwargs):
             record = orig_factory(*args, **kwargs)
@@ -137,7 +137,7 @@ def analyze(db_path, built_library_path, binary_path, out_path):
     n = len(exported_funcs)
 
     for i, (exported_func, signature) in enumerate(exported_funcs.items(), 1):
-        if i < 170:
+        if i < 254:
             continue
 
         logger.info('[%d/%d] Starting symbolic execution of %s', i, n, exported_func)

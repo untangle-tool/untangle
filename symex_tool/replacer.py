@@ -27,9 +27,9 @@ def monoline_function_call(line: str):
 def generate_fn_definition(func_ptr: str, call_id: int, actual_call: str):
     return [
         f"#define SYMEX_WRAPPER_{func_ptr}_{call_id}(...) (SYMEX_TARGET_{func_ptr}_{call_id}(), ({{{actual_call}(__VA_ARGS__);}}))\n",
-        f"unsigned SYMEX_NOOPT_TARGET_{func_ptr}_{call_id} = 0;\n",
+        f"unsigned SYMEX_NOOPT_{func_ptr}_{call_id} = 0;\n",
         f"void __attribute__((noinline)) SYMEX_TARGET_{func_ptr}_{call_id}(void){{\n",
-        f"\tSYMEX_NOOPT_TARGET_{func_ptr}_{call_id}++;\n",
+        f"\tSYMEX_NOOPT_{func_ptr}_{call_id}++;\n",
         "}\n",
     ]
 

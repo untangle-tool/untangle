@@ -14,12 +14,25 @@ from .utils import malloc_trim, cur_memory_usage
 logger = logging.getLogger('analyzer')
 
 
-class SectionException(Exception):
-    '''Raised when neither .bss or .data can be found in the constraint.'''
+class SymbolNotFound(Exception):
+    '''Raised when a symbol is not found in the given binary.'''
     pass
 
-class SymbolNotFoundException(Exception):
-    '''Raised when a symbol is not found in the given binary.'''
+class OutOfMemory(Exception):
+    '''Raised when the maximum memory usage is exceeded during symbolic
+    execution.
+    '''
+    pass
+
+class TimeoutExceeded(Exception):
+    '''Raised when the maximum symbolic execution time is exceeded without a
+    result.
+    '''
+    pass
+
+class SymexecFailed(Exception):
+    '''Raised when an internal angr/claripy error caused symbolic execution to
+    fail.'''
     pass
 
 
@@ -96,15 +109,13 @@ class Analyzer:
             max_pos, min_pos = int(max_pos), int(min_pos)
 
             size = (max_pos - min_pos + 1) // 8
-            try:
-                if '.bss' in c:
-                    section = '.bss'
-                elif '.data' in c:
-                    section = '.data'
-                else:
-                    raise SectionException('Could not find .bss or .data in constraint.')
-            except SectionException as e:
-                print(e)
+
+            if '.bss' in c:
+                section = '.bss'
+            elif '.data' in c:
+                section = '.data'
+            else:
+                logger.error('Could not find .bss or .data in constraint.')
 
             address = self.proj.loader.main_object.sections_map[section].vaddr + self.proj.loader.main_object.sections_map[section].memsize - ((max_pos+1) // 8)
             parsed_constraints.append(Variable(name=section, size=size, address=address))
@@ -171,7 +182,7 @@ class Analyzer:
 
         sym = self.proj.loader.find_symbol(function_name)
         if sym is None:
-            raise SymbolNotFoundException(function_name)
+            raise SymbolNotFound(function_name)
 
         function_addr = sym.rebased_addr
         state_options = {
@@ -208,43 +219,55 @@ class Analyzer:
                 simgr.explore(find=self.target_addrs, n=1)
             except angr.errors.SimUnsatError as e:
                 logger.error('Angr reported SimUnsatError: %r', e)
-                return None, mem_usage
+                raise SymexecFailed(e)
             except claripy.errors.UnsatError:
                 logger.error('Claripy reported SimUnsatError: %r', e)
-                return None, mem_usage
+                raise SymexecFailed(e)
             except angr.errors.SimMemoryError as e:
                 logger.error('Angr reported SimMemoryError: %r', e)
-                return None, mem_usage
+                raise SymexecFailed(e)
+            except UnicodeDecodeError as e:
+                # Really angr? Come on...
+                logger.error('Angr choked on UTF-8: %s', e.reason)
+                raise SymexecFailed(e)
             except ReferenceError as e:
-                logger.error('ReferenceError during sym execution: %r', e)
-                return None, mem_usage
+                logger.error('ReferenceError during symbolic execution: %r', e)
+                raise SymexecFailed(e)
             except AttributeError as e:
                 if "'ErrorRecord' object has no attribute 'history'" in rerp(e):
                     logger.error('Angr choked while trying to report a SimUnsatError: %r', e)
-                    return None, mem_usage
+                    raise SymexecFailed(e)
                 raise e
             except ValueError as e:
                 if 'arg is an empty sequence' in repr(e):
                     logger.error('Angr choked: %r', e)
-                    return None, mem_usage
+                    raise SymexecFailed(e)
                 raise e
 
+
             if simgr.found:
+                return simgr.found[0], mem_usage
+
+            if not simgr.active:
                 break
 
             if timeout is not None:
-                if (time.monotonic() - start) > timeout:
-                    logger.error('Exceeded maximum execution time, aborting')
-                    return None, mem_usage
+                cur = time.monotonic() - start
+
+                if cur > timeout:
+                    scur = f'{cur:.2f} seconds'
+                    smax = f'{timeout:.2f} seconds'
+                    raise TimeoutExceeded(f'exceeded maximum execution time: {scur} > {smax}')
 
             mem_usage = max(mem_usage, cur_memory_usage())
             malloc_trim()
 
             if max_mem is not None:
-                if cur_memory_usage() > max_mem:
-                    logger.error('Exceeded maximum memory usage, aborting')
-                    return None, mem_usage
+                cur = cur_memory_usage()
 
-        if simgr.found:
-            return simgr.found[0], mem_usage
+                if cur > max_mem:
+                    scur = f'{cur / 1024 / 1024:.0f} MiB'
+                    smax = f'{max_mem / 1024 / 1024:.0f} MiB'
+                    raise OutOfMemory(f'exceeded maximum memory usage: {scur} > {smax}')
+
         return None, mem_usage
