@@ -2,7 +2,7 @@ import os
 import logging
 from collections import defaultdict
 
-logger = logging.getLogger('replacer')
+logger = logging.getLogger('instrumenter')
 
 
 def organize_funcptr_info(lines: str):
@@ -34,7 +34,7 @@ def generate_fn_definition(func_ptr: str, call_id: int, actual_call: str):
     ]
 
 
-def replace_calls(lib_src_path, function_pointers):
+def instrument_library_source(lib_src_path, function_pointers):
     number_lines_added = defaultdict(int)
     seen = set()
 

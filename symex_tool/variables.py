@@ -2,6 +2,10 @@ import angr
 import claripy
 from typing import List
 from copy import deepcopy
+from collections import namedtuple
+
+Struct      = namedtuple('Struct', ('size', 'fields'))
+StructField = namedtuple('StructField', ('name', 'type', 'offset', 'size'))
 
 class Variable:
     def __init__(self, name=None, type=None, size=0, address=0, concrete=False, value=None):

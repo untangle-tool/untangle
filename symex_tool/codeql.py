@@ -1,4 +1,4 @@
-import os
+import sys
 import logging
 from subprocess import Popen, PIPE
 from pathlib import Path
@@ -36,7 +36,7 @@ def run_codeql_query(db_path, query):
 
         query_file.write(query)
         query_file.flush()
-        pack_file.write('name: whatever\nversion: 0.0.0\nextractor: cpp\nlibraryPathDependencies: codeql/cpp-all')
+        pack_file.write('name: whatever\nversion: 0.0.0\nextractor: cpp\nlibraryPathDependencies: codeql/cpp-all\n')
         pack_file.flush()
         cmd = ['codeql', 'query', 'run', '-d', db_path, query_path.as_posix()]
 

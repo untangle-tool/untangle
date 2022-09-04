@@ -5,8 +5,8 @@ from copy import deepcopy
 from typing import Dict, Iterable, List
 from angr.storage.memory_mixins import DefaultMemory
 
+from .variables import Variable, StructPointer
 
-from .variable import Variable, StructPointer
 
 logger = logging.getLogger('memory')
 

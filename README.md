@@ -50,10 +50,10 @@ To use the tool, you need to follow these steps:
     This will create and build a modified copy of the library in a new directory
     (e.g. `libfoo_build`).
 
-4. Run the analysis on the newly built library copy:
+4. Start symbolic execution on the newly built library copy:
 
     ```bash
-    python3 -m symex_tool.main analyze libfoo_build libfoo_db libfoo_build/path/to/libname.so libfoo_output
+    python3 -m symex_tool.main exec libfoo_build libfoo_db libfoo_build/path/to/libname.so libfoo_output
     ```
 
     The output will be in the specified `libfoo_output`.

@@ -6,10 +6,11 @@ import shutil
 from pathlib import Path
 
 from .codeql import build_codeql_db
-from .extract import extract_function_pointers, extract_structs
-from .replacer import replace_calls
+from .analyzer import extract_function_pointers, extract_structs
+from .instrumenter import instrument_library_source
 from .symex import symex
 from .utils import ensure_command, save_object
+
 
 logger = logging.getLogger('main')
 
@@ -19,16 +20,16 @@ def parse_arguments():
     parser.add_argument('-v', '--verbose', action='store_true', help='enable verbose logging')
 
     sub = parser.add_subparsers(dest='subcommand')
-    build = sub.add_parser('build', description='Build the given library and a CodeQL database for subsequent analysis')
+    build = sub.add_parser('build', description='Build a CodeQL database and built an instrument version of the given library for subsequent symbolic execution')
     build.add_argument('library_path' , metavar='LIBRARY_PATH' , help='path to library source directory')
     build.add_argument('db_path'      , metavar='OUT_DB_NAME'  , help='name of the CodeQL database to create')
     build.add_argument('build_command', metavar='BUILD_COMMAND', help='command to use to build the libray')
 
-    analyze = sub.add_parser('analyze' , description='Run a complete analysis of a previously built library')
-    analyze.add_argument('library_path', metavar='BUILT_LIBRARY_PATH', help='path to library build directory (created by the "build" subcommand)')
-    analyze.add_argument('db_path'     , metavar='CODEQL_DB_PATH'    , help='path to CodeQL database for the library')
-    analyze.add_argument('binary'      , metavar='BINARY'            , help='binary of the built library (e.g. shared object)')
-    analyze.add_argument('out_path'    , metavar='OUTPUT_PATH'       , help='output directory (created if needed)')
+    exec_ = sub.add_parser('exec' , description='Run a complete symbolic execution anlysis of a previously built library')
+    exec_.add_argument('library_path', metavar='BUILT_LIBRARY_PATH', help='path to library build directory (created by the "build" subcommand)')
+    exec_.add_argument('db_path'     , metavar='CODEQL_DB_PATH'    , help='path to CodeQL database for the library')
+    exec_.add_argument('binary'      , metavar='BINARY'            , help='binary of the built library (e.g. shared object)')
+    exec_.add_argument('out_path'    , metavar='OUTPUT_PATH'       , help='output directory (created if needed)')
 
     return parser.parse_args()
 
@@ -99,17 +100,16 @@ def build(library_path, out_db_path, build_command):
 
     logger.info('Library copy created at %s', new_library_path)
 
-    logger.info('Building original library and CodeQL database')
+    logger.info('Building CodeQL database for the original library')
     build_codeql_db(library_path, out_db_path, build_command)
-    logger.info('Database built at "%s"', out_db_path)
 
     logger.info('Extracting function pointers from CodeQL database')
     fptrs = extract_function_pointers(out_db_path)
 
-    logger.info('Replacing calls to function pointers in copied library source')
-    replace_calls(new_library_path, fptrs)
+    logger.info('Instrumenting library copy')
+    instrument_library_source(new_library_path, fptrs)
 
-    logger.info('Re-building library copy')
+    logger.info('Building instrumented library')
     ensure_command(build_command, cwd=new_library_path)
 
     save_object(fptrs, new_library_path / '.symex_fptrs')
@@ -118,6 +118,7 @@ def build(library_path, out_db_path, build_command):
     extract_structs(out_db_path, new_library_path / '.symex_structs')
 
     print('Built library ready at', new_library_path)
+    print('CodeQL database ready at', out_db_path)
 
 
 def analyze(db_path, built_library_path, binary_path, out_path):
