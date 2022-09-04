@@ -128,14 +128,21 @@ def analyze(db_path, built_library_path, binary_path, out_path):
     out_path.mkdir(exist_ok=True)
 
     exported_funcs = {}
-    for _, _, _, name, signature in fptrs:
-        exported_funcs[name] = signature
+    call_location_info = {}
+
+    for func_ptr_name, call_loc, call_id, exported_func, signature in fptrs:
+        exported_funcs[exported_func] = signature
+        call_location_info[call_id] = (func_ptr_name, call_loc)
+
     n = len(exported_funcs)
 
     for i, (exported_func, signature) in enumerate(exported_funcs.items(), 1):
+        if i < 170:
+            continue
+
         logger.info('[%d/%d] Starting symbolic execution of %s', i, n, exported_func)
-        symex_out_file = out_path / (exported_func + '.txt')
-        symex(exported_func, signature, structs, binary_path, symex_out_file)
+        symex_out_file = out_path / (f'{i:03d}_{exported_func}.txt')
+        symex(exported_func, signature, call_location_info, structs, binary_path, symex_out_file)
 
 
 def main():

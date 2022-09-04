@@ -6,14 +6,14 @@ from typing import Dict, Iterable, List
 from angr.storage.memory_mixins import DefaultMemory
 
 
-from .variable import Variable, Pointer
+from .variable import Variable, StructPointer
 
 logger = logging.getLogger('memory')
 
 
 class CustomMemory(DefaultMemory):
     alloc_base: int
-    tracked   : List[Pointer]
+    tracked   : List[StructPointer]
 
     def __init__(self, *a, **kwa):
         self.alloc_base = 0xf00f000000000000
@@ -41,14 +41,14 @@ class CustomMemory(DefaultMemory):
             **kwa
         )
 
-    def __init_tracked(self, lst: Iterable[Pointer]):
+    def __init_tracked(self, lst: Iterable[StructPointer]):
         assert lst is not None
 
         self.tracked = []
         for t in lst:
             self.tracked += t.flatten()
 
-    def __allocate_object(self, ptr: Pointer, offset: int):
+    def __allocate_object(self, ptr: StructPointer, offset: int):
         assert offset < ptr.size
         addr = self.alloc_base
         self.alloc_base += ptr.size
@@ -79,6 +79,7 @@ class CustomMemory(DefaultMemory):
 
         # NOTE: Careful! Comparisons and other operations on BVs have side effects!
         #       E.G. stuff like `if some_bv: ...` or `some_bv == whatever`
+        #       Maybe self.state.solver.is_true could help?
 
         solver = self.state.solver
 
@@ -155,15 +156,3 @@ class CustomMemory(DefaultMemory):
                 return [write_addr]
 
         return super().concretize_write_addr(addr, strategies=strategies, condition=condition)
-
-    def eval_tracked_objects(self):
-        solver = self.state.solver
-
-        res = {}
-        for ptr in self.tracked:
-            if ptr.value is None:
-                res[ptr] = solver.eval(self.load(ptr.bv, ptr.size), cast_to=bytes)
-            else:
-                res[ptr] = solver.eval(self.load(ptr.value, ptr.size), cast_to=bytes)
-
-        return res

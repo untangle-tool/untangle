@@ -7,23 +7,53 @@ import logging
 from typing import List, Union
 from angr.sim_type import SimTypeFunction
 
-from .exception import SectionException
-from .variable import Variable, Pointer
+from .variable import Variable, StructPointer
 from .memory import CustomMemory
-from .utils import malloc_trim
+from .utils import malloc_trim, cur_memory_usage
 
 logger = logging.getLogger('analyzer')
+
+
+class SectionException(Exception):
+    '''Raised when neither .bss or .data can be found in the constraint.'''
+    pass
+
+class SymbolNotFoundException(Exception):
+    '''Raised when a symbol is not found in the given binary.'''
+    pass
+
+
+# Angr can only deal with CLOCK_REALTIME... force CLOCK_REALTIME regardless of
+# the requested clock for simplicity's sake.
+class clock_gettime(angr.SimProcedure):
+    def run(self, which_clock, timespec_ptr):
+        which_clock = 0 # CLOCK_REALTIME
+
+        if self.state.solver.is_true(timespec_ptr == 0):
+            return -1
+
+        if angr.options.USE_SYSTEM_TIMES in self.state.options:
+            flt = time.time()
+            result = {'tv_sec': int(flt), 'tv_nsec': int(flt * 1000000000)}
+        else:
+            result = {
+                'tv_sec': self.state.solver.BVS('tv_sec', self.arch.bits, key=('api', 'clock_gettime', 'tv_sec')),
+                'tv_nsec': self.state.solver.BVS('tv_nsec', self.arch.bits, key=('api', 'clock_gettime', 'tv_nsec')),
+            }
+
+        self.state.mem[timespec_ptr].struct.timespec = result
+        return 0
 
 
 class Analyzer:
     BASE_ADDR = 0x400000
 
-    def __init__(self, binary_name: str, function_name: str):
+    def __init__(self, binary_name: str):
         self.binary_name = binary_name
-        self.function_name = function_name
         self.symbolic_sections = []
 
         self.proj = angr.Project(f'./{self.binary_name}', main_opts={'base_addr': self.BASE_ADDR})
+        self.proj.hook_symbol('clock_gettime', clock_gettime(), replace=True)
         self.target_addrs = set()
         self.targets = {}
 
@@ -53,7 +83,9 @@ class Analyzer:
         return global_constraints
 
     def parse_constraints(self, constraints: List[str]):
-        """ Parse the constraints and return a list of tuples containing section, size and address. """
+        '''Parse the constraints and return a list of tuples containing section,
+        size and address.
+        '''
         parsed_constraints = []
         for c in constraints:
             start_index = c.find('[')
@@ -70,7 +102,7 @@ class Analyzer:
                 elif '.data' in c:
                     section = '.data'
                 else:
-                    raise SectionException("Could not find .bss or .data in constraint.")
+                    raise SectionException('Could not find .bss or .data in constraint.')
             except SectionException as e:
                 print(e)
 
@@ -79,40 +111,69 @@ class Analyzer:
         return parsed_constraints
 
     def dump_memory_content(self, at_address: int, size: int, state: angr.sim_state.SimState):
-        """ Dump the memory content at the given address. """
-        return state.solver.eval(state.memory.load(at_address, size), cast_to=bytes)
+        '''Dump the memory content at the given address.'''
+        return state.solver.eval(state.memory.load(at_address, size), cast_to=bytes).hex()
 
     def eval_args(self, state: angr.sim_state.SimState):
-        """ Evaluate the arguments of the target function with the solver of the given state. """
-        args = []
+        '''Evaluate the arguments of the target function with the solver of the
+         given state.
+        '''
+        res = []
         constraints = state.solver.constraints
-        for arg in self.args:
-            # The name of a bitvector is stored in BV.args[0]
-            involved_constraints = [c for c in constraints if arg.args[0] in str(c)]
-            if len(involved_constraints) > 0:
-                arg_value = state.solver.eval(arg, cast_to=bytes)
-                args.append(arg_value)
-        return args
 
-    def symbolically_execute(self, parameters: List[Union[Variable,Pointer]], timeout: int = None, max_mem: int = None):
-        """ Setup symbolic execution and search a path to the target function. Then, print the values of the parameters. """
+        for arg in self.args:
+            if isinstance(arg, StructPointer):
+                res.append(arg.eval(state, indent=1))
+            else:
+                # The name of a bitvector is stored in BV.args[0]
+                involved_constraints = [c for c in constraints if arg.bv.args[0] in str(c)]
+
+                if len(involved_constraints) > 0:
+                    arg.value = state.solver.eval(arg.bv, cast_to=bytes).hex()
+                    arg.concrete = True
+                    res.append(arg.value)
+                else:
+                    res.append(None)
+
+        return res
+
+    def call_id_from_found_state(self, state: angr.sim_state.SimState):
+        '''Extract the call location id from a found state.
+        '''
+        sym = self.proj.loader.find_symbol(state.addr)
+        assert sym.name.startswith('SYMEX_TARGET_')
+        return int(sym.name[sym.name.rfind('_') + 1:])
+
+    def symbolically_execute(self, function_name: str,
+            parameters: List[Union[Variable,StructPointer]],
+            timeout: int = None, max_mem: int = None):
         self.args = []
-        ptrs = []
+        sym_args  = []
+        ptrs      = []
+        mem_usage = cur_memory_usage()
 
         malloc_trim()
 
         for param in parameters:
-            if isinstance(param, Pointer):
-                self.args.append(param.bv)
+            if isinstance(param, StructPointer):
+                self.args.append(param)
                 ptrs.append(param)
+                sym_args.append(param.bv)
             else:
                 if param.concrete:
-                    self.args.append(claripy.BVV(param.value, param.size * 8))
+                    param.bv = claripy.BVV(param.value, param.size * 8)
+                    self.args.append(param)
                 else:
-                    self.args.append(claripy.BVS(param.name, param.size * 8))
+                    param.bv = claripy.BVS(param.name, param.size * 8)
+                    self.args.append(param)
 
-        function_addr = self.proj.loader.find_symbol(self.function_name).rebased_addr
+                sym_args.append(param.bv)
 
+        sym = self.proj.loader.find_symbol(function_name)
+        if sym is None:
+            raise SymbolNotFoundException(function_name)
+
+        function_addr = sym.rebased_addr
         state_options = {
             angr.options.SYMBOL_FILL_UNCONSTRAINED_MEMORY,
             angr.options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS
@@ -123,7 +184,7 @@ class Analyzer:
         prototype = SimTypeFunction([], None)
         state = self.proj.factory.call_state(
             function_addr,
-            *self.args,
+            *sym_args,
             add_options=state_options,
             cc=self.proj.factory.cc(),
             prototype=prototype,
@@ -137,7 +198,8 @@ class Analyzer:
         self.__make_section_symbolic('.data', state)
 
         simgr = self.proj.factory.simulation_manager(state)
-        simgr.use_technique(angr.exploration_techniques.veritesting.Veritesting())
+        # Ok, I give up, Veritesting is utterly broken
+        # simgr.use_technique(angr.exploration_techniques.veritesting.Veritesting())
         # simgr.use_technique(tech=angr.exploration_techniques.DFS())
         start = time.monotonic()
 
@@ -146,10 +208,26 @@ class Analyzer:
                 simgr.explore(find=self.target_addrs, n=1)
             except angr.errors.SimUnsatError as e:
                 logger.error('Angr reported SimUnsatError: %r', e)
-                return None
+                return None, mem_usage
+            except claripy.errors.UnsatError:
+                logger.error('Claripy reported SimUnsatError: %r', e)
+                return None, mem_usage
+            except angr.errors.SimMemoryError as e:
+                logger.error('Angr reported SimMemoryError: %r', e)
+                return None, mem_usage
             except ReferenceError as e:
                 logger.error('ReferenceError during sym execution: %r', e)
-                return None
+                return None, mem_usage
+            except AttributeError as e:
+                if "'ErrorRecord' object has no attribute 'history'" in rerp(e):
+                    logger.error('Angr choked while trying to report a SimUnsatError: %r', e)
+                    return None, mem_usage
+                raise e
+            except ValueError as e:
+                if 'arg is an empty sequence' in repr(e):
+                    logger.error('Angr choked: %r', e)
+                    return None, mem_usage
+                raise e
 
             if simgr.found:
                 break
@@ -157,15 +235,16 @@ class Analyzer:
             if timeout is not None:
                 if (time.monotonic() - start) > timeout:
                     logger.error('Exceeded maximum execution time, aborting')
-                    return None
+                    return None, mem_usage
 
+            mem_usage = max(mem_usage, cur_memory_usage())
             malloc_trim()
 
             if max_mem is not None:
-                if psutil.Process(os.getpid()).memory_info().rss > max_mem:
+                if cur_memory_usage() > max_mem:
                     logger.error('Exceeded maximum memory usage, aborting')
-                    return None
+                    return None, mem_usage
 
         if simgr.found:
-            return simgr.found[0]
-        return None
+            return simgr.found[0], mem_usage
+        return None, mem_usage

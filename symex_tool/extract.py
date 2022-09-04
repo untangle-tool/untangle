@@ -4,7 +4,7 @@ from collections import defaultdict, deque, namedtuple
 
 from .codeql import run_codeql_query
 from .utils import save_object, restore_object
-from .variable import Variable, Pointer
+from .variable import Variable, StructPointer
 
 
 logger = logging.getLogger('extract')
@@ -13,22 +13,22 @@ Struct      = namedtuple('Struct', ('size', 'fields'))
 StructField = namedtuple('StructField', ('name', 'type', 'offset', 'size'))
 
 
-def parse_struct_ptr(name: str, structs: Dict[str,Struct]) -> Pointer:
-    if name not in structs:
+def parse_struct_ptr(name: str, struct_name: str, structs: Dict[str,Struct]) -> StructPointer:
+    if struct_name not in structs:
         return None
 
-    logger.debug('Recursively parsing struct %r', name)
-    root = Pointer(name, structs[name].size, {})
+    logger.debug('Recursively parsing struct %r', struct_name)
+    root = StructPointer(struct_name, name, structs[struct_name].size, {})
     q = deque([root])
     parent = {}
 
     while q:
         cur = q.popleft()
 
-        for f in structs[cur.name].fields:
+        for f in structs[cur.struct_name].fields:
             # Cannot parse these further
             if f.type in ('struct <unnamed>', 'union <unnamed>'):
-                cur.fields[f.offset] = f.size
+                cur.fields[f.offset] = (f.name, f.size)
                 continue
 
             fname, ftype, foff, fsize = f
@@ -51,7 +51,7 @@ def parse_struct_ptr(name: str, structs: Dict[str,Struct]) -> Pointer:
                         inf = False
 
                         # Avoid infinite loops
-                        if ftype == cur.name:
+                        if ftype == cur.struct_name:
                             inf = True
                         else:
                             par = ftype
@@ -70,11 +70,12 @@ def parse_struct_ptr(name: str, structs: Dict[str,Struct]) -> Pointer:
                                 seen.add(par)
 
                         if not inf:
-                            parent[ftype] = cur.name
+                            parent[ftype] = cur.struct_name
 
                             for i in range(array_sz):
                                 if ftype in structs:
-                                    p = Pointer(ftype, structs[ftype].size, {})
+                                    pname = fname + f'[{i}]' if array_sz > 1 else fname
+                                    p = StructPointer(ftype, pname, structs[ftype].size, {})
                                     cur.fields[foff + i * fsize] = p
                                     q.append(p)
 
@@ -82,7 +83,8 @@ def parse_struct_ptr(name: str, structs: Dict[str,Struct]) -> Pointer:
 
             # A "normal" field or a ptr to a struct that we don't know about
             for i in range(array_sz):
-                cur.fields[foff + i * fsize] = fsize
+                pname = fname + f'[{i}]' if array_sz > 1 else fname
+                cur.fields[foff + i * fsize] = (pname, fsize)
 
     return root
 
@@ -132,7 +134,7 @@ def extract_function_pointers(codeql_db_path, cache_fname=None):
         fptr_decls[name] = decl_loc
         fptr_calls[name][tuple(call_loc)].append((exported_func, exported_loc, sig))
 
-    # [(func_ptr_name, call_loc, exported_func, signature)]
+    # [(func_ptr_name, call_loc, call_id, exported_func, signature)]
     res = []
     seen_locs = set()
 
@@ -235,7 +237,7 @@ class FancyFunc extends Function {
 from
     GlobalVariable v,
     Type t,
-    FunctionPointerIshType f,
+    FunctionStructPointerIshType f,
     VariableCall vc,
     VariableAccess va,
     Location l,

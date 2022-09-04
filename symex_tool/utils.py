@@ -1,6 +1,8 @@
+import os
 import sys
 import pickle
 import logging
+import psutil
 from ctypes import CDLL
 from pathlib import Path
 from textwrap import indent
@@ -61,3 +63,7 @@ def malloc_trim():
         CDLL('libc.so.6').malloc_trim(0)
     except:
         pass
+
+
+def cur_memory_usage():
+    return psutil.Process(os.getpid()).memory_info().rss
