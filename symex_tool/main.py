@@ -138,9 +138,6 @@ def analyze(db_path, built_library_path, binary_path, out_path):
     n = len(exported_funcs)
 
     for i, (exported_func, signature) in enumerate(exported_funcs.items(), 1):
-        if i < 254:
-            continue
-
         logger.info('[%d/%d] Starting symbolic execution of %s', i, n, exported_func)
         symex_out_file = out_path / (f'{i:03d}_{exported_func}.txt')
         symex(exported_func, signature, call_location_info, structs, binary_path, symex_out_file)
