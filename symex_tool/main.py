@@ -152,11 +152,13 @@ def exec_all(db_path, built_library_path, binary_path, out_path, verify):
     out_path.mkdir(exist_ok=True)
 
     exported_funcs = {}
-    call_loc_info = {}
+    call_loc_info  = {}
 
     for func_ptr_name, call_loc, call_id, exported_func, signature in fptrs:
         exported_funcs[exported_func] = signature
-        call_loc_info[call_id] = (func_ptr_name, call_loc)
+        if call_id not in call_loc_info:
+            call_loc_info[call_id] = (func_ptr_name, call_loc, set())
+        call_loc_info[call_id][-1].add(exported_func)
 
     n = len(exported_funcs)
 
