@@ -96,18 +96,17 @@ def setup_logging(level):
     logging.getLogger('pyvex').setLevel(logging.WARNING)
     logging.getLogger('asyncio').setLevel(logging.WARNING)
 
-    # This gets too noisy complaining that "Exit state has over 256 possible
-    # solutions. Likely unconstrained; skipping."
-    logging.getLogger('angr.engines.successors').setLevel(logging.ERROR)
-
-    # The program is accessing register with an unspecified value. BLABLABLA...
-    logging.getLogger('angr.storage.memory_mixins.default_filler_mixin').setLevel(logging.ERROR)
-
-    # Allocation request of X bytes exceeded maximum of Y bytes; allocating Y bytes
-    logging.getLogger('angr.state_plugins.heap.heap_base').setLevel(logging.ERROR)
-
-    # memcpy upper bound of X outside limit, limiting to 0x1000 instead
-    logging.getLogger('angr.procedures.libc.memcpy').setLevel(logging.ERROR)
+    if level > logging.DEBUG:
+        # "Exit state has over 256 possible solutions. Likely unconstrained; skipping."
+        logging.getLogger('angr.engines.successors').setLevel(logging.ERROR)
+        # "The program is accessing register with an unspecified value. BLABLABLA..."
+        logging.getLogger('angr.storage.memory_mixins.default_filler_mixin').setLevel(logging.ERROR)
+        # "Allocation request of X bytes exceeded maximum of Y bytes; allocating Y bytes"
+        logging.getLogger('angr.state_plugins.heap.heap_base').setLevel(logging.ERROR)
+        # "memcpy upper bound of X outside limit, limiting to 0x1000 instead"
+        logging.getLogger('angr.procedures.libc.memcpy').setLevel(logging.ERROR)
+        # {Tried to look up a symbolic fd ..."
+        logging.getLogger('angr.state_plugins.posix').setLevel(logging.ERROR)
 
     logging.basicConfig(level=level, format=fmt)
     logging.setLogRecordFactory(record_factory)
@@ -117,8 +116,8 @@ def build(library_path, build_path, out_db_path, build_command):
     '''Build library at the given source directory path using build_command and
     create a CodeQL database for it.
     '''
-    # Create a copy of the source code. If it already exists, delete it and
-    # create a new one.
+    Create a copy of the source code. If it already exists, delete it and
+    create a new one.
     if os.path.exists(build_path):
         shutil.rmtree(build_path)
     shutil.copytree(library_path, build_path, symlinks=True)
@@ -175,7 +174,7 @@ def exec_all(db_path, built_library_path, binary_path, out_path, resume_idx, ver
             continue
 
         logger.info('[%d/%d] Starting symbolic execution of %s', i, n, exported_func)
-        symex_out_file = out_path / (f'{i:03d}_{exported_func}.txt')
+        symex_out_file = out_path / (f'{i:04d}_{exported_func}.txt')
         symex_wrapper(exported_func, signature, call_loc_info, structs, binary_path, verify, dfs, symex_out_file)
 
 
