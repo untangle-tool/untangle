@@ -29,8 +29,16 @@ First of all, prepare the library you want to analyze:
     python3 -m symex_tool.main build libfoo_source libfoo_build libfoo_db "lib_build_command"
     ```
 
-   This will create and build a modified copy of the library (`libfoo_source`)
-   in the directory `libfoo_build`.
+   This will create and build an instrumented modified copy of the library
+   (`libfoo_source`) in the directory `libfoo_build` as well as the CodeQL DB in
+   `libfoo_db`.
+
+   **Note**: due to the nature of the instrumentation, compilation of the
+   instrumented library might fail because the linker may find the same
+   `SYMEX_...` symbol defined multiple times. If that's the case, you need to
+   pass `-z,muldefs` to the linker: how to do this depends on the library you
+   are building. Sometimes it's enough to just `export LDFLAGS=Wl,-z,muldefs`
+   before building as it will get picked up by `make`.
 
 Using the `list` command you can list all function pointers found (if any) along
 with the location of their calls and the library function through which such
