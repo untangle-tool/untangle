@@ -182,7 +182,7 @@ class Executor:
 
     def symbolically_execute(self, function_name: str,
             parameters: List[Union[Variable,StructPointer]],
-            timeout: int = None, max_mem: int = None):
+            dfs: bool = False, timeout: int = None, max_mem: int = None):
         self.args = []
         self.ptrs = []
 
@@ -262,9 +262,9 @@ class Executor:
         self.__make_section_symbolic('.data', state)
 
         simgr = self.proj.factory.simulation_manager(state)
-        # Ok, I give up, Veritesting is utterly broken
-        # simgr.use_technique(angr.exploration_techniques.veritesting.Veritesting())
-        # simgr.use_technique(tech=angr.exploration_techniques.DFS())
+        if dfs:
+            simgr.use_technique(tech=angr.exploration_techniques.DFS())
+
         start = time.monotonic()
 
         while 1:
@@ -313,6 +313,7 @@ class Executor:
                     raise TimeoutExceeded(f'exceeded maximum execution time: {scur} > {smax}')
 
             mem_cur   = cur_memory_usage()
+            malloc_trim()
             mem_usage = max(mem_usage, mem_cur)
 
             if max_mem is not None:

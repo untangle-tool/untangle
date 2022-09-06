@@ -34,12 +34,15 @@ def parse_arguments():
 
     exec_ = sub.add_parser('exec', description='Run a complete symbolic execution anlysis of a previously built library')
     exec_.add_argument('--verify'    , action='store_true'         , help='try verifying correctness of the results by compiling and running a test')
+    exec_.add_argument('--dfs'       , action='store_true'         , help='use DFS (depth first search) exploration policy for angr (lower memory usage)')
+    exec_.add_argument('--resume'    , metavar='N', type=int, default=1, help='resume from the Nth function instead of re-starting from scratch')
     exec_.add_argument('library_path', metavar='BUILT_LIBRARY_PATH', help='path to library build directory (created by the "build" subcommand)')
     exec_.add_argument('db_path'     , metavar='CODEQL_DB_PATH'    , help='path to CodeQL database for the library')
     exec_.add_argument('binary'      , metavar='BINARY'            , help='binary of the built library (e.g. shared object)')
     exec_.add_argument('out_path'    , metavar='OUTPUT_PATH'       , help='output directory (created if needed)')
 
     exec_filter = sub.add_parser('exec-filter', description='Run symbolic execution only for the matching function pointer calls')
+    exec_filter.add_argument('--dfs'       , action='store_true'         , help='use DFS (depth first search) exploration policy for angr (lower memory usage)')
     exec_filter.add_argument('--verify'    , action='store_true'         , help='try verifying correctness of the results by compiling and running a test')
     exec_filter.add_argument('--function'  , metavar='FUNCTION_FILTER'   , help='only test starting library functions with name matching this Python regexp (even partially)')
     exec_filter.add_argument('--fptr'      , metavar='FPTR_FILTER'       , help='only test reachability of function pointers with name matching this Python regexp (even partially)')
@@ -144,7 +147,7 @@ def build(library_path, build_path, out_db_path, build_command):
     print('CodeQL database ready at', out_db_path)
 
 
-def exec_all(db_path, built_library_path, binary_path, out_path, verify):
+def exec_all(db_path, built_library_path, binary_path, out_path, resume_idx, verify, dfs):
     fptrs   = extract_function_pointers(db_path, built_library_path / '.symex_fptrs')
     structs = extract_structs(db_path, built_library_path / '.symex_structs')
 
@@ -163,12 +166,15 @@ def exec_all(db_path, built_library_path, binary_path, out_path, verify):
     n = len(exported_funcs)
 
     for i, (exported_func, signature) in enumerate(exported_funcs.items(), 1):
+        if i < resume_idx:
+            continue
+
         logger.info('[%d/%d] Starting symbolic execution of %s', i, n, exported_func)
         symex_out_file = out_path / (f'{i:03d}_{exported_func}.txt')
-        symex(exported_func, signature, call_loc_info, structs, binary_path, verify, symex_out_file)
+        symex(exported_func, signature, call_loc_info, structs, binary_path, verify, dfs, symex_out_file)
 
 
-def exec_filter(db_path, built_library_path, binary_path, out_path, verify, filter_func, filter_fptr, filter_loc):
+def exec_filter(db_path, built_library_path, binary_path, out_path, verify, dfs, filter_func, filter_fptr, filter_loc):
     if filter_func is not None:
         try:
             filter_func = re.compile(filter_func)
@@ -207,7 +213,7 @@ def exec_filter(db_path, built_library_path, binary_path, out_path, verify, filt
             continue
 
         symex_out_file = out_path / (exported_func + '.txt')
-        symex(exported_func, signature, call_loc_info, structs, binary_path, verify, symex_out_file, filter_fptr, filter_loc)
+        symex(exported_func, signature, call_loc_info, structs, binary_path, verify, dfs, symex_out_file, filter_fptr, filter_loc)
 
 
 def list_all(db_path, built_library_path):
@@ -242,12 +248,12 @@ def main():
         lib  = Path(args.library_path)
         lbin = Path(args.binary)
         out = Path(args.out_path)
-        exec_filter(db, lib, lbin, out, args.verify, args.function, args.fptr, args.loc)
+        exec_filter(db, lib, lbin, out, args.verify, args.dfs, args.function, args.fptr, args.loc)
     else:
         lib  = Path(args.library_path)
         lbin = Path(args.binary)
         out = Path(args.out_path)
-        exec_all(db, lib, lbin, out, args.verify)
+        exec_all(db, lib, lbin, out, args.resume, args.verify, args.dfs)
 
 
 if __name__ == '__main__':

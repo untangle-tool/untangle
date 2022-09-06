@@ -3,6 +3,8 @@
 import os
 import time
 import logging
+import angr
+import claripy
 from typing import List
 from collections import deque
 from subprocess import check_output, check_call, DEVNULL, CalledProcessError
@@ -31,7 +33,7 @@ def find_symbol_offset(binary: str, name: str):
 
 
 def symex(fn_name: str, signature: str, call_loc_info: dict,
-        structs: dict, binary: str, verify: bool, out_file: str,
+        structs: dict, binary: str, verify: bool, dfs: bool, out_file: str,
         filter_fptr = None, filter_loc: str = None):
     params = parse_signature(signature, structs)
     executor = Executor(binary, call_loc_info, filter_fptr, filter_loc)
@@ -39,6 +41,11 @@ def symex(fn_name: str, signature: str, call_loc_info: dict,
 
     timeout = 15 * 60 # 15 min
     max_mem = 16 << 30 # 16GiB
+
+    # Does not work ffs
+    # rlimit_mem = max_mem + (4 << 30) # 20GiB hard limit
+    # resource.setrlimit(resource.RLIMIT_RSS, (rlimit_mem, resource.RLIM_INFINITY))
+
     found = None
     discard_output = False
 
@@ -57,7 +64,7 @@ def symex(fn_name: str, signature: str, call_loc_info: dict,
             fout.write(f"[*] Starting symbolic execution of function {fn_name}\n")
 
             try:
-                found, exec_mem_usage = executor.symbolically_execute(fn_name, params, timeout, max_mem)
+                found, exec_mem_usage = executor.symbolically_execute(fn_name, params, dfs, timeout, max_mem)
             except (SymbolNotFound, OutOfMemory, TimeoutExceeded, SymexecFailed) as e:
                 err = repr(e)
                 logger.error(err)
@@ -88,7 +95,19 @@ def symex(fn_name: str, signature: str, call_loc_info: dict,
                 if not execute:
                     if len(params) != 0:
                         # Evaluate parameters involved in constraints.
-                        evaluated_params = executor.eval_args(found)
+
+                        try:
+                            evaluated_params = executor.eval_args(found)
+                        except (angr.errors.SimUnsatError, claripy.errors.UnsatError) as e:
+                            # Pretty weird, but apparently claripy/angr can report unsat even
+                            # after getting to the solution... can't do much about it other
+                            # than bail out.
+                            err = repr(e)
+                            logger.error('Failed evaluating parameters: %s', err)
+                            fout.write('[!] Function argument evaluation failed: ' + err + '\n')
+                            execute = False
+                            found = None
+                            break
 
                         if not evaluated_params or all(p is None for p in evaluated_params):
                             fout.write("[-] No function argument was involved in any constraint.\n")
