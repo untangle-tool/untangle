@@ -26,6 +26,7 @@ def parse_arguments():
     build.add_argument('build_command', metavar='BUILD_COMMAND', help='command to use to build the libray')
 
     exec_ = sub.add_parser('exec' , description='Run a complete symbolic execution anlysis of a previously built library')
+    exec_.add_argument('--verify'    , action='store_true'         , help='try verifying correctness of the results by compiling and running a test')
     exec_.add_argument('library_path', metavar='BUILT_LIBRARY_PATH', help='path to library build directory (created by the "build" subcommand)')
     exec_.add_argument('db_path'     , metavar='CODEQL_DB_PATH'    , help='path to CodeQL database for the library')
     exec_.add_argument('binary'      , metavar='BINARY'            , help='binary of the built library (e.g. shared object)')
@@ -121,7 +122,7 @@ def build(library_path, out_db_path, build_command):
     print('CodeQL database ready at', out_db_path)
 
 
-def analyze(db_path, built_library_path, binary_path, out_path):
+def exec_all(db_path, built_library_path, binary_path, out_path, verify):
     fptrs   = extract_function_pointers(db_path, built_library_path / '.symex_fptrs')
     structs = extract_structs(db_path, built_library_path / '.symex_structs')
 
@@ -140,7 +141,7 @@ def analyze(db_path, built_library_path, binary_path, out_path):
     for i, (exported_func, signature) in enumerate(exported_funcs.items(), 1):
         logger.info('[%d/%d] Starting symbolic execution of %s', i, n, exported_func)
         symex_out_file = out_path / (f'{i:03d}_{exported_func}.txt')
-        symex(exported_func, signature, call_location_info, structs, binary_path, symex_out_file)
+        symex(exported_func, signature, call_location_info, structs, binary_path, verify, symex_out_file)
 
 
 def main():
@@ -156,7 +157,7 @@ def main():
         lib  = Path(args.library_path)
         lbin = Path(args.binary)
         out = Path(args.out_path)
-        analyze(db, lib, lbin, out)
+        exec_all(db, lib, lbin, out, args.verify)
 
 
 if __name__ == '__main__':

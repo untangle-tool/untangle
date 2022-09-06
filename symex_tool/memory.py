@@ -13,10 +13,11 @@ logger = logging.getLogger('memory')
 
 class CustomMemory(DefaultMemory):
     alloc_base: int
+    alloc_next: int
     tracked   : List[StructPointer]
 
     def __init__(self, *a, **kwa):
-        self.alloc_base = kwa.pop('alloc_base', 0xf00f000000000000)
+        self.alloc_base = self.alloc_next = kwa.pop('alloc_base', 0x666abc00000)
         self.__init_tracked(kwa.pop('tracked_ptrs', None))
         self.__init_from_project(kwa.pop('project', None), *a, **kwa)
 
@@ -50,8 +51,8 @@ class CustomMemory(DefaultMemory):
 
     def __allocate_object(self, ptr: StructPointer, offset: int):
         assert offset < ptr.size
-        addr = self.alloc_base
-        self.alloc_base += ptr.size
+        addr = self.alloc_next
+        self.alloc_next += ptr.size
 
         for off, field in ptr.fields.items():
             if isinstance(field, StructPointer):
@@ -63,6 +64,7 @@ class CustomMemory(DefaultMemory):
     def copy(self, *a):
         o = super().copy(*a)
         o.alloc_base = self.alloc_base
+        o.alloc_next = self.alloc_next
         o.tracked    = deepcopy(self.tracked)
         return o
 
@@ -173,3 +175,10 @@ class CustomMemory(DefaultMemory):
                     return ptr, off
 
         return None, None
+
+    def dump_tracked_memory(self):
+        size = self.alloc_next - self.alloc_base
+        if size > 0:
+            mem = self.state.memory.load(self.alloc_base, size)
+            return self.state.solver.eval(mem, cast_to=bytes)
+        return None
