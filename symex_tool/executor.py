@@ -161,7 +161,7 @@ class Executor:
         '''Extract the call location id from a found state.
         '''
         assert name.startswith('SYMEX_TARGET_')
-        return int(name[name.rfind('_') + 1:])
+        return int(name[name.rfind('_') + 1:].replace('.localalias', ''))
 
     def call_id_from_found_state(self, state: angr.sim_state.SimState):
         '''Extract the call location id from a found state.
