@@ -14,7 +14,7 @@ that are needed to get to the function pointer call.
 
 ## Usage
 
-To use the tool, you need to follow these steps:
+First of all, prepare the library you want to analyze:
 
 1. Obtain a copy of the source code of the library to analyze.
 
@@ -26,16 +26,36 @@ To use the tool, you need to follow these steps:
    for the library (e.g. `make -j`) as command-line argument:
 
     ```bash
-    python3 -m symex_tool.main build libfoo_source libfoo_db "lib_build_command"
+    python3 -m symex_tool.main build libfoo_source libfoo_build libfoo_db "lib_build_command"
     ```
 
-    This will create and build a modified copy of the library in a new directory
-    (e.g. `libfoo_build`).
+   This will create and build a modified copy of the library (`libfoo_source`)
+   in the directory `libfoo_build`.
 
-4. Start symbolic execution on the newly built library copy:
+Using the `list` command you can list all function pointers found (if any) along
+with the location of their calls and the library function through which such
+locations may be reachable:
 
-    ```bash
-    python3 -m symex_tool.main exec libfoo_build libfoo_db libfoo_build/path/to/libname.so libfoo_output
-    ```
+```bash
+python3 -m symex_tool.main list libfoo_build libfoo_db
+```
 
-    The output will be in the specified `libfoo_output`.
+Using the `exec` command you can start symbolic execution of all interesting
+library functions found in the library, trying to reach ***any*** function pointer
+call:
+
+```bash
+python3 -m symex_tool.main exec libfoo_build libfoo_db libfoo_build/path/to/libname.so output_dir
+```
+
+Using the `exec-filter` command you can also filter by library function name,
+function pointer name, or exact location (this information is taken from the
+`list` command):
+
+```bash
+python3 -m symex_tool.main exec-filter --functoin 'foo_[a-z]+' --fptr 'foo_hook_(one|two)' ...
+python3 -m symex_tool.main exec-filter --loc 'src/foo.c:123:10:123:20' ...
+```
+
+You can also try to automatically verify the correctness of the results by
+passing `--verify` to either `exec` or `exec-filter`.
