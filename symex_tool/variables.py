@@ -51,7 +51,6 @@ class StructPointer:
         return res
 
     def eval(self, state: angr.sim_state.SimState, indent=0) -> dict:
-        res = '<struct pointer> ' + self.struct_name + ' {\n'
         others = []
         solver = state.solver
 
@@ -59,6 +58,11 @@ class StructPointer:
             data = solver.eval(state.memory.load(self.bv, self.size), cast_to=bytes)
         else:
             data = solver.eval(state.memory.load(self.value, self.size), cast_to=bytes)
+
+        if data == b'\x00' * len(data):
+            return '<struct pointer> ' + self.struct_name + f' {{ <{len(data)} zeroed bytes> }}'
+
+        res = '<struct pointer> ' + self.struct_name + ' {\n'
 
         for off, field in self.fields.items():
             if isinstance(field, self.__class__):
