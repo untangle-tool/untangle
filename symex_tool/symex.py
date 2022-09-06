@@ -258,6 +258,8 @@ def symex_wrapper(fn_name: str, signature: str, call_loc_info: dict,
     proc.start()
 
     start = time.monotonic()
+    cur_mem = cur_memory_usage(proc.pid)
+    cur_time = time.monotonic() - start
 
     while 1:
         proc.join(1)
@@ -290,6 +292,7 @@ def symex_wrapper(fn_name: str, signature: str, call_loc_info: dict,
     if proc.exitcode is not None and proc.exitcode != 0:
         with open(out_file, 'w') as f:
             f.write(f'[!] Symexec failed: process returned {proc.exitcode}\n')
+            f.write(f"[+] Completed in {cur_time:.0f} seconds, using {cur_mem / 1024 / 1024:.0f} MiB of memory.\n")
 
 
 ################################################################################
