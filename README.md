@@ -36,7 +36,7 @@ First of all, prepare the library you want to analyze:
    **Note**: due to the nature of the instrumentation, compilation of the
    instrumented library might fail because the linker may find the same
    `SYMEX_...` symbol defined multiple times. If that's the case, you need to
-   pass `-z,muldefs` to the linker: how to do this depends on the library you
+   pass `-z muldefs` to the linker: how to do this depends on the library you
    are building. Sometimes it's enough to just `export LDFLAGS=Wl,-z,muldefs`
    before building as it will get picked up by `make`.
 
