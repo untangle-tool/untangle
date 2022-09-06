@@ -119,11 +119,9 @@ def build(library_path, build_path, out_db_path, build_command):
     '''
     # Create a copy of the source code. If it already exists, delete it and
     # create a new one.
-    if not os.path.exists(build_path):
-        shutil.copytree(library_path, build_path)
-    else:
+    if os.path.exists(build_path):
         shutil.rmtree(build_path)
-        shutil.copytree(library_path, build_path)
+    shutil.copytree(library_path, build_path, symlinks=True)
 
     logger.info('Library copy created at %s', build_path)
 
@@ -132,6 +130,12 @@ def build(library_path, build_path, out_db_path, build_command):
 
     logger.info('Extracting function pointers from CodeQL database')
     fptrs = extract_function_pointers(out_db_path)
+
+    if len(fptrs) > 0:
+        logger.info('Found %d possible paths to reach function pointer calls', len(fptrs))
+    else:
+        logger.fatal('No interesting function pointers in this library!')
+        sys.exit(1)
 
     logger.info('Instrumenting library copy')
     instrument_library_source(build_path, fptrs)
@@ -224,7 +228,7 @@ def list_all(db_path, built_library_path):
     for fptr, call_loc, call_id, exported_func, signature in fptrs:
         by_fptr[fptr].add((exported_func, call_loc))
 
-    print('{:40s} {:40s} {}'.format('Function pointer', 'Exported function', 'Call location'))
+    print('{:40s} {:40s} {}'.format('Function pointer', 'Library function', 'Call location'))
 
     for fptr, subset in sorted(by_fptr.items()):
         for exported_func, call_loc in sorted(subset):
