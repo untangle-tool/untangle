@@ -75,7 +75,7 @@ def instrument_library_source(lib_src_path, function_pointers):
             file_lines[line_no] = file_lines[line_no][:start_column-1] + f"SYMEX_WRAPPER_{func_ptr}_{call_id}();\n"
 
         # If the call is on one line and there is no semi-colon, add one.
-        if monoline_function_call(file_lines[line_no]) and not ';\n' in file_lines[line_no]:
+        if monoline_function_call(file_lines[line_no]) and not ';' in file_lines[line_no]:
             file_lines[line_no] = file_lines[line_no].strip() + ';\n'
 
         with open(file_path, "w") as f:
