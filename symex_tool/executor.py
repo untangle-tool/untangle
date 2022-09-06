@@ -14,6 +14,13 @@ from .utils import malloc_trim, cur_memory_usage
 logger = logging.getLogger('executor')
 
 
+class MatchNotFound(Exception):
+    '''Raised when no location to reach is found according to the given filters
+    on function pointer name and location.
+    '''
+    pass
+
+
 class SymbolNotFound(Exception):
     '''Raised when a symbol is not found in the given binary.'''
     pass
@@ -61,23 +68,14 @@ class clock_gettime(angr.SimProcedure):
 class Executor:
     BASE_ADDR = 0x400000
 
-    def __init__(self, binary_name: str):
+    def __init__(self, binary_name: str, call_loc_info: dict, filter_fptr = None, filter_loc: str = None):
         self.binary_name = binary_name
         self.symbolic_sections = []
-
+        self.call_loc_info = call_loc_info
+        self.filter_fptr = filter_fptr
+        self.filter_loc = filter_loc
         self.proj = angr.Project(f'./{self.binary_name}', main_opts={'base_addr': self.BASE_ADDR})
         self.proj.hook_symbol('clock_gettime', clock_gettime(), replace=True)
-        self.target_addrs = set()
-        self.targets = {}
-
-        for sym in self.proj.loader.symbols:
-            if not sym.name.startswith('SYMEX_TARGET_'):
-                continue
-
-            self.target_addrs.add(sym.rebased_addr)
-            self.targets[sym.rebased_addr] = sym.name
-
-        self.target_addrs = list(self.target_addrs)
 
     def __make_section_symbolic(self, section_name: str, state: angr.sim_state.SimState):
         section = claripy.BVS(section_name, self.proj.loader.main_object.sections_map[section_name].memsize * 8)
@@ -170,22 +168,55 @@ class Executor:
 
         return res
 
+    def call_id_from_target_symbol_name(self, name: str):
+        '''Extract the call location id from a found state.
+        '''
+        assert name.startswith('SYMEX_TARGET_')
+        return int(name[name.rfind('_') + 1:])
+
     def call_id_from_found_state(self, state: angr.sim_state.SimState):
         '''Extract the call location id from a found state.
         '''
         sym = self.proj.loader.find_symbol(state.addr)
-        assert sym.name.startswith('SYMEX_TARGET_')
-        return int(sym.name[sym.name.rfind('_') + 1:])
+        return self.call_id_from_target_symbol_name(sym.name)
 
     def symbolically_execute(self, function_name: str,
             parameters: List[Union[Variable,StructPointer]],
             timeout: int = None, max_mem: int = None):
         self.args = []
         self.ptrs = []
-        sym_args  = []
-        mem_usage = cur_memory_usage()
 
+        sym_args  = []
+        targets = {}
+        mem_usage = cur_memory_usage()
         malloc_trim()
+
+        for sym in self.proj.loader.symbols:
+            if not sym.name.startswith('SYMEX_TARGET_'):
+                continue
+
+            call_id = self.call_id_from_target_symbol_name(sym.name)
+            fptr_name, call_loc, reachable_from = self.call_loc_info[call_id]
+            if function_name not in reachable_from:
+                continue
+
+            call_loc_str = ':'.join(map(str, call_loc))
+            loc_ok = self.filter_loc is None or call_loc_str == self.filter_loc
+            fptr_ok = self.filter_fptr is None or self.filter_fptr.search(fptr_name) is not None
+
+            if loc_ok and fptr_ok:
+                targets[sym.rebased_addr] = (fptr_name, call_loc_str)
+
+        target_addrs = list(targets)
+
+        if self.filter_loc is not None or self.filter_fptr is not None:
+            if len(target_addrs) == 0:
+                raise MatchNotFound(f'No function pointer call reachable from "{function_name}" matches the given filters')
+            elif len(target_addrs) == 1:
+                fptr_name, call_loc_str = targets[target_addrs[0]]
+                logger.info('Symbolically executing %s to reach the call to %s at %s', function_name, fptr_name, call_loc_str)
+            else:
+                logger.info('Symbolically executing %s to reach any of %d target locations', function_name, len(targets))
 
         for param in parameters:
             if isinstance(param, StructPointer):
@@ -238,7 +269,7 @@ class Executor:
 
         while 1:
             try:
-                simgr.explore(find=self.target_addrs, n=1)
+                simgr.explore(find=target_addrs, n=1)
             except angr.errors.SimUnsatError as e:
                 logger.error('Angr reported SimUnsatError: %r', e)
                 raise SymexecFailed(e)

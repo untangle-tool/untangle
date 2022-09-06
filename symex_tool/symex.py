@@ -12,7 +12,7 @@ from .variables import Variable, StructPointer
 from .parser import parse_signature
 from .memory import CustomMemory
 from .utils import cur_memory_usage
-from .executor import Executor, SymbolNotFound, OutOfMemory, TimeoutExceeded, SymexecFailed
+from .executor import Executor, MatchNotFound, SymbolNotFound, OutOfMemory, TimeoutExceeded, SymexecFailed
 
 
 logger = logging.getLogger('symex')
@@ -30,14 +30,17 @@ def find_symbol_offset(binary: str, name: str):
     return None
 
 
-def symex(fn_name: str, signature: str, call_loc_info: dict, structs: dict, binary: str, verify: bool, out_file: str):
+def symex(fn_name: str, signature: str, call_loc_info: dict,
+        structs: dict, binary: str, verify: bool, out_file: str,
+        filter_fptr = None, filter_loc: str = None):
     params = parse_signature(signature, structs)
-    executor = Executor(binary)
+    executor = Executor(binary, call_loc_info, filter_fptr, filter_loc)
     execute = True
 
     timeout = 15 * 60 # 15 min
     max_mem = 16 << 30 # 16GiB
     found = None
+    discard_output = False
 
     with open(out_file, 'w') as fout:
         if any(param.size is None for param in params):
@@ -51,7 +54,7 @@ def symex(fn_name: str, signature: str, call_loc_info: dict, structs: dict, bina
         start = time.monotonic()
 
         while execute:
-            fout.write(f"[+] Starting symbolic execution of function {fn_name}\n")
+            fout.write(f"[*] Starting symbolic execution of function {fn_name}\n")
 
             try:
                 found, exec_mem_usage = executor.symbolically_execute(fn_name, params, timeout, max_mem)
@@ -60,13 +63,17 @@ def symex(fn_name: str, signature: str, call_loc_info: dict, structs: dict, bina
                 logger.error(err)
                 fout.write('[!] ' + err + '\n')
                 break
+            except MatchNotFound as e:
+                logger.debug(e.args[0])
+                discard_output = True
+                break
 
             mem_usage = max(mem_usage, exec_mem_usage)
             execute = False
 
             if found is not None:
                 call_id = executor.call_id_from_found_state(found)
-                fptr_name, location = call_loc_info[call_id]
+                fptr_name, location, _ = call_loc_info[call_id]
                 fname, lineno = location[:2]
                 fout.write(f'[+] Reached call to {fptr_name} at {fname} line {lineno}\n')
 
@@ -113,112 +120,117 @@ def symex(fn_name: str, signature: str, call_loc_info: dict, structs: dict, bina
             else:
                 fout.write("[-] No solution could be found.\n")
 
-        end = time.monotonic()
-        fout.write(f"[+] Completed in {end - start:.0f} seconds, using {mem_usage / 1024 / 1024:.0f} MiB of memory.\n")
+        if not discard_output:
 
-        if not verify or found is None:
-            return
+            end = time.monotonic()
+            fout.write(f"[+] Completed in {end - start:.0f} seconds, using {mem_usage / 1024 / 1024:.0f} MiB of memory.\n")
 
-        # Try to verify correctness of solution compiling and running a test
+            if not verify or found is None:
+                return
 
-        mem = found.memory.dump_tracked_memory()
-        mem_content = ''
+            # Try to verify correctness of solution compiling and running a test
 
-        if mem is not None:
-            for b in mem:
-                mem_content += f'\\x{b:02x}'
+            mem = found.memory.dump_tracked_memory()
+            mem_content = ''
 
-        args = []
-        argdefs = []
-        argtypes = []
+            if mem is not None:
+                for b in mem:
+                    mem_content += f'\\x{b:02x}'
 
-        for i, arg in enumerate(executor.args):
-            if isinstance(arg, StructPointer):
-                for ptr in found.memory.tracked:
-                    if arg.name == ptr.name:
-                        args.append(ptr)
-                        break
+            args = []
+            argdefs = []
+            argtypes = []
+
+            for i, arg in enumerate(executor.args):
+                if isinstance(arg, StructPointer):
+                    for ptr in found.memory.tracked:
+                        if arg.name == ptr.name:
+                            args.append(ptr)
+                            break
+                    else:
+                        args.append(arg)
                 else:
                     args.append(arg)
-            else:
-                args.append(arg)
 
-        for i, arg in enumerate(args):
-            if isinstance(arg, StructPointer):
-                if arg.value is not None:
-                    off = arg.value - found.memory.alloc_base
-                    argdefs.append(f'void *param_{i} = mem + 0x{off:x};')
-                else:
-                    argdefs.append(f'void *param_{i} = NULL;')
-                argtypes.append('void *')
-            else:
-                # Is this some tracked struct ptr + some offset?
-                val = found.solver.eval(arg.bv)
-                ptr, off = found.memory.tracked_pointer_offset(val)
-                if ptr is not None:
-                    ptr_off = ptr.value - found.memory.alloc_base
-                    argdefs.append(f'void *param_{i} = mem + 0x{ptr_off:x} + 0x{off:x};')
+            for i, arg in enumerate(args):
+                if isinstance(arg, StructPointer):
+                    if arg.value is not None:
+                        off = arg.value - found.memory.alloc_base
+                        argdefs.append(f'void *param_{i} = mem + 0x{off:x};')
+                    else:
+                        argdefs.append(f'void *param_{i} = NULL;')
                     argtypes.append('void *')
-                    continue
+                else:
+                    # Is this some tracked struct ptr + some offset?
+                    val = found.solver.eval(arg.bv)
+                    ptr, off = found.memory.tracked_pointer_offset(val)
+                    if ptr is not None:
+                        ptr_off = ptr.value - found.memory.alloc_base
+                        argdefs.append(f'void *param_{i} = mem + 0x{ptr_off:x} + 0x{off:x};')
+                        argtypes.append('void *')
+                        continue
 
-                val = found.solver.eval(arg.bv)
-                argtype = 'void *' if arg.type == 'ptr' else arg.type
-                argdefs.append(f'{argtype} param_{i} = ({argtype})0x{val:x};')
-                argtypes.append(argtype)
+                    val = found.solver.eval(arg.bv)
+                    argtype = 'void *' if arg.type == 'ptr' else arg.type
+                    argdefs.append(f'{argtype} param_{i} = ({argtype})0x{val:x};')
+                    argtypes.append(argtype)
 
-        symbol_offset = find_symbol_offset(binary, fn_name)
-        if symbol_offset is None:
-            logger.error('Verification error: could not find symbol "%s" in binary', fn_name)
-            fout.write('[!] Verification errored')
-            return
-
-        with NamedTemporaryFile('w', prefix='symex-test', suffix='.c', delete=False) as f:
-            f.write(VERIFY_C_SOURCE_TEMPLATE.format(
-                mem_content=mem_content,
-                libpath=binary,
-                symbol_offset=symbol_offset,
-                alloc_base=hex(found.memory.alloc_base),
-                argdefs='\n\t'.join(argdefs),
-                signature=', '.join(argtypes),
-                args=', '.join(f'param_{i}' for i in range(len(argdefs)))
-            ))
-            f.flush()
-            f.truncate()
-
-            try:
-                check_call(f'gcc -g -o /tmp/test "{f.name}" -ldl', shell=True, stdout=DEVNULL, stderr=DEVNULL)
-            except CalledProcessError as e:
-                logger.error('Verification error while compiling: %r', e)
-                fout.write('[!] Verification errored while compiling test')
+            symbol_offset = find_symbol_offset(binary, fn_name)
+            if symbol_offset is None:
+                logger.error('Verification error: could not find symbol "%s" in binary', fn_name)
+                fout.write('[!] Verification errored')
                 return
 
-        os.remove(f.name)
+            with NamedTemporaryFile('w', prefix='symex-test', suffix='.c', delete=False) as f:
+                f.write(VERIFY_C_SOURCE_TEMPLATE.format(
+                    mem_content=mem_content,
+                    libpath=binary,
+                    symbol_offset=symbol_offset,
+                    alloc_base=hex(found.memory.alloc_base),
+                    argdefs='\n\t'.join(argdefs),
+                    signature=', '.join(argtypes),
+                    args=', '.join(f'param_{i}' for i in range(len(argdefs)))
+                ))
+                f.flush()
+                f.truncate()
 
-        with NamedTemporaryFile('w', prefix='symex-test', suffix='.gdb', delete=False) as f:
-            f.write(VERIFY_GDB_SCRIPT_TEMPLATE.format(
-                binary_name='/tmp/test',
-                libpath=binary,
-                symbol=f'SYMEX_TARGET_{fptr_name}_{call_id}'
-            ))
-            f.flush()
-            f.truncate()
+                try:
+                    check_call(f'gcc -g -o /tmp/test "{f.name}" -ldl', shell=True, stdout=DEVNULL, stderr=DEVNULL)
+                except CalledProcessError as e:
+                    logger.error('Verification error while compiling: %r', e)
+                    fout.write('[!] Verification errored while compiling test')
+                    return
 
-            try:
-                out = check_output(f'gdb -batch -x {f.name}', stderr=DEVNULL, shell=True, text=True)
-            except CalledProcessError as e:
-                logger.error('Verification error while running GDB: %r', e)
-                fout.write('[!] Verification errored while running test')
+            os.remove(f.name)
+
+            with NamedTemporaryFile('w', prefix='symex-test', suffix='.gdb', delete=False) as f:
+                f.write(VERIFY_GDB_SCRIPT_TEMPLATE.format(
+                    binary_name='/tmp/test',
+                    libpath=binary,
+                    symbol=f'SYMEX_TARGET_{fptr_name}_{call_id}'
+                ))
+                f.flush()
+                f.truncate()
+
+                try:
+                    out = check_output(f'gdb -batch -x {f.name}', stderr=DEVNULL, shell=True, text=True)
+                except CalledProcessError as e:
+                    logger.error('Verification error while running GDB: %r', e)
+                    fout.write('[!] Verification errored while running test')
+                    return
+
+            os.remove(f.name)
+
+            if 'REACHED!' in out:
+                logger.info('Verification OK')
+                fout.write('[+] Verification successful')
                 return
 
-        os.remove(f.name)
+            logger.info('Verification FAIL')
+            fout.write('[-] Verification failed')
 
-        if 'REACHED!' in out:
-            logger.info('Verification OK')
-            fout.write('[+] Verification successful')
-            return
-
-        logger.info('Verification FAIL')
-        fout.write('[-] Verification failed')
+    if discard_output:
+        os.remove(out_file)
 
 
 ################################################################################
