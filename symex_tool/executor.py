@@ -132,7 +132,22 @@ class Executor:
         res = []
         constraints = state.solver.constraints
 
-        for arg in self.args:
+        # Somehow the StructPointer objs here are not the same as the ones in
+        # state.memory.tracked. Use those instead.
+        args = []
+
+        for i, arg in enumerate(self.args):
+            if isinstance(arg, StructPointer):
+                for ptr in state.memory.tracked:
+                    if arg.name == ptr.name:
+                        args.append(ptr)
+                        break
+                else:
+                    args.append(arg)
+            else:
+                args.append(arg)
+
+        for arg in args:
             if isinstance(arg, StructPointer):
                 res.append(arg.eval(state, indent=1))
             else:
@@ -140,6 +155,13 @@ class Executor:
                 involved_constraints = [c for c in constraints if arg.bv.args[0] in str(c)]
 
                 if len(involved_constraints) > 0:
+                    # Is this some tracked struct ptr + some offset?
+                    val = state.solver.eval(arg.bv)
+                    ptr, off = state.memory.tracked_pointer_offset(val)
+                    if ptr is not None:
+                        res.append(f'{ptr.full_name} + 0x{off:x}')
+                        continue
+
                     arg.value = state.solver.eval(arg.bv, cast_to=bytes).hex()
                     arg.concrete = True
                     res.append(arg.value)
@@ -159,8 +181,8 @@ class Executor:
             parameters: List[Union[Variable,StructPointer]],
             timeout: int = None, max_mem: int = None):
         self.args = []
+        self.ptrs = []
         sym_args  = []
-        ptrs      = []
         mem_usage = cur_memory_usage()
 
         malloc_trim()
@@ -168,7 +190,7 @@ class Executor:
         for param in parameters:
             if isinstance(param, StructPointer):
                 self.args.append(param)
-                ptrs.append(param)
+                self.ptrs.append(param)
                 sym_args.append(param.bv)
             else:
                 if param.concrete:
@@ -190,7 +212,7 @@ class Executor:
             angr.options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS
         }
 
-        mem = CustomMemory(memory_id='mem', project=self.proj, tracked_ptrs=ptrs)
+        mem = CustomMemory(memory_id='mem', project=self.proj, tracked_ptrs=self.ptrs)
 
         prototype = SimTypeFunction([], None)
         state = self.proj.factory.call_state(
@@ -259,14 +281,12 @@ class Executor:
                     smax = f'{timeout:.2f} seconds'
                     raise TimeoutExceeded(f'exceeded maximum execution time: {scur} > {smax}')
 
-            mem_usage = max(mem_usage, cur_memory_usage())
-            malloc_trim()
+            mem_cur   = cur_memory_usage()
+            mem_usage = max(mem_usage, mem_cur)
 
             if max_mem is not None:
-                cur = cur_memory_usage()
-
-                if cur > max_mem:
-                    scur = f'{cur / 1024 / 1024:.0f} MiB'
+                if mem_cur > max_mem:
+                    scur = f'{mem_cur / 1024 / 1024:.0f} MiB'
                     smax = f'{max_mem / 1024 / 1024:.0f} MiB'
                     raise OutOfMemory(f'exceeded maximum memory usage: {scur} > {smax}')
 

@@ -16,7 +16,7 @@ class CustomMemory(DefaultMemory):
     tracked   : List[StructPointer]
 
     def __init__(self, *a, **kwa):
-        self.alloc_base = 0xf00f000000000000
+        self.alloc_base = kwa.pop('alloc_base', 0xf00f000000000000)
         self.__init_tracked(kwa.pop('tracked_ptrs', None))
         self.__init_from_project(kwa.pop('project', None), *a, **kwa)
 
@@ -52,6 +52,11 @@ class CustomMemory(DefaultMemory):
         assert offset < ptr.size
         addr = self.alloc_base
         self.alloc_base += ptr.size
+
+        for off, field in ptr.fields.items():
+            if isinstance(field, StructPointer):
+                self.store(addr + off, field.bv)
+
         logger.debug('Allocated new object for %r', ptr)
         return addr
 
@@ -156,3 +161,15 @@ class CustomMemory(DefaultMemory):
                 return [write_addr]
 
         return super().concretize_write_addr(addr, strategies=strategies, condition=condition)
+
+    def tracked_pointer_offset(self, val):
+        if not isinstance(val, int):
+            return None, None
+
+        for ptr in self.tracked:
+            if ptr.value is not None:
+                off = val - ptr.value
+                if 0 <= off < ptr.size:
+                    return ptr, off
+
+        return None, None

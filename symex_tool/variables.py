@@ -28,9 +28,10 @@ class StructPointer:
     '''This class will represent a function pointer function parameter, which
     needs more complex handling.
     '''
-    def __init__(self, struct_name: str, name: str, size: int, fields: dict):
+    def __init__(self, struct_name: str, name: str, full_name: str, size: int, fields: dict):
         self.struct_name = struct_name
         self.name        = name
+        self.full_name   = full_name
         self.size        = size
         self.fields      = fields
         self.value       = None # Address to assign if/when concretized
@@ -62,12 +63,24 @@ class StructPointer:
         for off, field in self.fields.items():
             if isinstance(field, self.__class__):
                 if field.value is None:
-                    res += '\t' * indent + f'\t{field.name} = {solver.eval(field.bv, cast_to=bytes).hex()}\n'
+                    val = solver.eval(field.bv, cast_to=bytes)
+                    if val == b'\x00' * len(val):
+                        val = f'<{len(val)} zeroed bytes>'
+                    else:
+                        val = val.hex()
+
+                    res += '\t' * indent + f'\t{field.name} = {val}\n'
                 else:
                     sub = field.eval(state, indent + 1)
                     res += '\t' * indent + f'\t{field.name} = {sub}\n'
             else:
                 name, size = field
-                res += '\t' * indent + f'\t{name} = {data[off:off + size].hex()}\n'
+                val = data[off:off + size]
+                if val == b'\x00' * len(val):
+                    val = f'<{len(val)} zeroed bytes>'
+                else:
+                    val = val.hex()
+
+                res += '\t' * indent + f'\t{name} = {val}\n'
 
         return res + '\t' * indent + '}'

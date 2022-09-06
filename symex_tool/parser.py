@@ -52,9 +52,9 @@ def parse_struct_ptr(name: str, struct_name: str, structs: Dict[str,Struct]) -> 
         return None
 
     logger.debug('Recursively parsing struct %r', struct_name)
-    root = StructPointer(struct_name, name, structs[struct_name].size, {})
+    root = StructPointer(struct_name, name, name, structs[struct_name].size, {})
     q = deque([root])
-    parent = {}
+    parent_struct = {}
 
     while q:
         cur = q.popleft()
@@ -91,8 +91,8 @@ def parse_struct_ptr(name: str, struct_name: str, structs: Dict[str,Struct]) -> 
                             par = ftype
                             seen = set(par)
 
-                            while par in parent:
-                                newpar = parent[par]
+                            while par in parent_struct:
+                                newpar = parent_struct[par]
                                 if newpar == ftype or newpar in seen:
                                     inf = True
                                     break
@@ -104,12 +104,13 @@ def parse_struct_ptr(name: str, struct_name: str, structs: Dict[str,Struct]) -> 
                                 seen.add(par)
 
                         if not inf:
-                            parent[ftype] = cur.struct_name
+                            parent_struct[ftype] = cur.struct_name
 
                             for i in range(array_sz):
                                 if ftype in structs:
-                                    pname = fname + f'[{i}]' if array_sz > 1 else fname
-                                    p = StructPointer(ftype, pname, structs[ftype].size, {})
+                                    ptr_name = fname + f'[{i}]' if array_sz > 1 else fname
+                                    full_name = f'{cur.full_name}->{ptr_name}'
+                                    p = StructPointer(ftype, ptr_name, full_name, structs[ftype].size, {})
                                     cur.fields[foff + i * fsize] = p
                                     q.append(p)
 
@@ -117,8 +118,8 @@ def parse_struct_ptr(name: str, struct_name: str, structs: Dict[str,Struct]) -> 
 
             # A "normal" field or a ptr to a struct that we don't know about
             for i in range(array_sz):
-                pname = fname + f'[{i}]' if array_sz > 1 else fname
-                cur.fields[foff + i * fsize] = (pname, fsize)
+                ptr_name = fname + f'[{i}]' if array_sz > 1 else fname
+                cur.fields[foff + i * fsize] = (ptr_name, fsize)
 
     return root
 
