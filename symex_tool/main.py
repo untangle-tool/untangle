@@ -37,6 +37,8 @@ def parse_arguments():
     exec_.add_argument('--verify'    , action='store_true'         , help='try verifying correctness of the results by compiling and running a test')
     exec_.add_argument('--dfs'       , action='store_true'         , help='use DFS (depth first search) exploration policy for angr (lower memory usage)')
     exec_.add_argument('--resume'    , metavar='N', type=int, default=1, help='resume from the Nth function instead of re-starting from scratch')
+    exec_.add_argument('--timeout'   , metavar='SECONDS', type=int, default=15 * 60, help='timeout for each symbolix execution run (default: 15 min)')
+    exec_.add_argument('--memory'    , metavar='MEGABYTES', type=int, default=16384, help='maximum amount of memory (RSS) to use during each symbolic execution run (default: 16GiB)')
     exec_.add_argument('library_path', metavar='BUILT_LIBRARY_PATH', help='path to library build directory (created by the "build" subcommand)')
     exec_.add_argument('db_path'     , metavar='CODEQL_DB_PATH'    , help='path to CodeQL database for the library')
     exec_.add_argument('binary'      , metavar='BINARY'            , help='binary of the built library (e.g. shared object)')
@@ -45,6 +47,8 @@ def parse_arguments():
     exec_filter = sub.add_parser('exec-filter', description='Run symbolic execution only for the matching function pointer calls')
     exec_filter.add_argument('--dfs'       , action='store_true'         , help='use DFS (depth first search) exploration policy for angr (lower memory usage)')
     exec_filter.add_argument('--verify'    , action='store_true'         , help='try verifying correctness of the results by compiling and running a test')
+    exec_filter.add_argument('--timeout'   , metavar='SECONDS', type=int, default=15 * 60, help='timeout for each symbolix execution run (default: 15 min)')
+    exec_filter.add_argument('--memory'    , metavar='MEGABYTES', type=int, default=16384, help='maximum amount of memory (RSS) to use during each symbolic execution run (default: 16GiB)')
     exec_filter.add_argument('--function'  , metavar='FUNCTION_FILTER'   , help='only test starting library functions with name matching this Python regexp (even partially)')
     exec_filter.add_argument('--fptr'      , metavar='FPTR_FILTER'       , help='only test reachability of function pointers with name matching this Python regexp (even partially)')
     exec_filter.add_argument('--loc'       , metavar='LOC_FILTER'        , help='only test reachability of this exact function pointer call location')
@@ -116,8 +120,8 @@ def build(library_path, build_path, out_db_path, build_command):
     '''Build library at the given source directory path using build_command and
     create a CodeQL database for it.
     '''
-    Create a copy of the source code. If it already exists, delete it and
-    create a new one.
+    # Create a copy of the source code. If it already exists, delete it and
+    # create a new one.
     if os.path.exists(build_path):
         shutil.rmtree(build_path)
     shutil.copytree(library_path, build_path, symlinks=True)
@@ -151,7 +155,8 @@ def build(library_path, build_path, out_db_path, build_command):
     print('CodeQL database ready at', out_db_path)
 
 
-def exec_all(db_path, built_library_path, binary_path, out_path, resume_idx, verify, dfs):
+def exec_all(db_path, built_library_path, binary_path, out_path, resume_idx,
+        verify, dfs, max_mem, max_time):
     fptrs   = extract_function_pointers(db_path, built_library_path / '.symex_fptrs')
     structs = extract_structs(db_path, built_library_path / '.symex_structs')
 
@@ -175,10 +180,12 @@ def exec_all(db_path, built_library_path, binary_path, out_path, resume_idx, ver
 
         logger.info('[%d/%d] Starting symbolic execution of %s', i, n, exported_func)
         symex_out_file = out_path / (f'{i:04d}_{exported_func}.txt')
-        symex_wrapper(exported_func, signature, call_loc_info, structs, binary_path, verify, dfs, symex_out_file)
+        symex_wrapper(exported_func, signature, call_loc_info, structs,
+            binary_path, verify, dfs, symex_out_file, max_mem, max_time)
 
 
-def exec_filter(db_path, built_library_path, binary_path, out_path, verify, dfs, filter_func, filter_fptr, filter_loc):
+def exec_filter(db_path, built_library_path, binary_path, out_path, verify, dfs,
+        filter_func, filter_fptr, filter_loc, max_mem, max_time):
     if filter_func is not None:
         try:
             filter_func = re.compile(filter_func)
@@ -217,7 +224,9 @@ def exec_filter(db_path, built_library_path, binary_path, out_path, verify, dfs,
             continue
 
         symex_out_file = out_path / (exported_func + '.txt')
-        symex_wrapper(exported_func, signature, call_loc_info, structs, binary_path, verify, dfs, symex_out_file, filter_fptr, filter_loc)
+        symex_wrapper(exported_func, signature, call_loc_info, structs,
+            binary_path, verify, dfs, symex_out_file, max_mem, max_time,
+            filter_fptr, filter_loc)
 
 
 def list_all(db_path, built_library_path):
@@ -252,12 +261,14 @@ def main():
         lib  = Path(args.library_path)
         lbin = Path(args.binary)
         out = Path(args.out_path)
-        exec_filter(db, lib, lbin, out, args.verify, args.dfs, args.function, args.fptr, args.loc)
+        exec_filter(db, lib, lbin, out, args.verify, args.dfs, args.function,
+            args.fptr, args.loc, args.memory, args.timeout)
     else:
         lib  = Path(args.library_path)
         lbin = Path(args.binary)
         out = Path(args.out_path)
-        exec_all(db, lib, lbin, out, args.resume, args.verify, args.dfs)
+        exec_all(db, lib, lbin, out, args.resume, args.verify, args.dfs,
+            args.memory, args.timeout)
 
 
 if __name__ == '__main__':

@@ -249,10 +249,9 @@ def symex(fn_name: str, signature: str, call_loc_info: dict,
 
 def symex_wrapper(fn_name: str, signature: str, call_loc_info: dict,
         structs: dict, binary: str, verify: bool, dfs: bool, out_file: str,
-        filter_fptr = None, filter_loc: str = None):
-    max_mem = 16 << 30 # 16GiB
-    max_time = 15 * 60 # 15 min
-
+        max_mem: int, max_time: float, filter_fptr = None,
+        filter_loc: str = None):
+    max_mem *= 1024 * 1024 # MiB -> B
     args = (fn_name, signature, call_loc_info, structs, binary, verify, dfs, out_file, filter_fptr, filter_loc)
     proc = Process(target=symex, args=args, daemon=True)
     proc.start()
