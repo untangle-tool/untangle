@@ -65,5 +65,7 @@ def malloc_trim():
         pass
 
 
-def cur_memory_usage():
-    return psutil.Process(os.getpid()).memory_info().rss
+def cur_memory_usage(pid: int=0):
+    if pid == 0:
+        pid = os.getpid()
+    return psutil.Process(pid).memory_info().rss

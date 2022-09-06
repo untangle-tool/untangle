@@ -6,11 +6,12 @@ import logging
 import shutil
 from pathlib import Path
 from collections import defaultdict
+from multiprocessing import Process
 
 from .codeql import build_codeql_db
 from .analyzer import extract_function_pointers, extract_structs
 from .instrumenter import instrument_library_source
-from .symex import symex
+from .symex import symex_wrapper
 from .utils import ensure_command, save_object
 
 
@@ -171,7 +172,7 @@ def exec_all(db_path, built_library_path, binary_path, out_path, resume_idx, ver
 
         logger.info('[%d/%d] Starting symbolic execution of %s', i, n, exported_func)
         symex_out_file = out_path / (f'{i:03d}_{exported_func}.txt')
-        symex(exported_func, signature, call_loc_info, structs, binary_path, verify, dfs, symex_out_file)
+        symex_wrapper(exported_func, signature, call_loc_info, structs, binary_path, verify, dfs, symex_out_file)
 
 
 def exec_filter(db_path, built_library_path, binary_path, out_path, verify, dfs, filter_func, filter_fptr, filter_loc):
@@ -213,7 +214,7 @@ def exec_filter(db_path, built_library_path, binary_path, out_path, verify, dfs,
             continue
 
         symex_out_file = out_path / (exported_func + '.txt')
-        symex(exported_func, signature, call_loc_info, structs, binary_path, verify, dfs, symex_out_file, filter_fptr, filter_loc)
+        symex_wrapper(exported_func, signature, call_loc_info, structs, binary_path, verify, dfs, symex_out_file, filter_fptr, filter_loc)
 
 
 def list_all(db_path, built_library_path):

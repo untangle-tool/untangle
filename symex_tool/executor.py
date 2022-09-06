@@ -25,17 +25,6 @@ class SymbolNotFound(Exception):
     '''Raised when a symbol is not found in the given binary.'''
     pass
 
-class OutOfMemory(Exception):
-    '''Raised when the maximum memory usage is exceeded during symbolic
-    execution.
-    '''
-    pass
-
-class TimeoutExceeded(Exception):
-    '''Raised when the maximum symbolic execution time is exceeded without a
-    result.
-    '''
-    pass
 
 class SymexecFailed(Exception):
     '''Raised when an internal angr/claripy error caused symbolic execution to
@@ -182,7 +171,7 @@ class Executor:
 
     def symbolically_execute(self, function_name: str,
             parameters: List[Union[Variable,StructPointer]],
-            dfs: bool = False, timeout: int = None, max_mem: int = None):
+            dfs: bool = False):
         self.args = []
         self.ptrs = []
 
@@ -304,22 +293,7 @@ class Executor:
             if not simgr.active:
                 break
 
-            if timeout is not None:
-                cur = time.monotonic() - start
-
-                if cur > timeout:
-                    scur = f'{cur:.2f} seconds'
-                    smax = f'{timeout:.2f} seconds'
-                    raise TimeoutExceeded(f'exceeded maximum execution time: {scur} > {smax}')
-
-            mem_cur   = cur_memory_usage()
+            mem_usage = max(mem_usage, cur_memory_usage())
             malloc_trim()
-            mem_usage = max(mem_usage, mem_cur)
-
-            if max_mem is not None:
-                if mem_cur > max_mem:
-                    scur = f'{mem_cur / 1024 / 1024:.0f} MiB'
-                    smax = f'{max_mem / 1024 / 1024:.0f} MiB'
-                    raise OutOfMemory(f'exceeded maximum memory usage: {scur} > {smax}')
 
         return None, mem_usage

@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import os
+import sys
 import time
 import logging
 import angr
@@ -9,12 +10,13 @@ from typing import List
 from collections import deque
 from subprocess import check_output, check_call, DEVNULL, CalledProcessError
 from tempfile import NamedTemporaryFile
+from multiprocessing import Process
 
 from .variables import Variable, StructPointer
 from .parser import parse_signature
 from .memory import CustomMemory
 from .utils import cur_memory_usage
-from .executor import Executor, MatchNotFound, SymbolNotFound, OutOfMemory, TimeoutExceeded, SymexecFailed
+from .executor import Executor, MatchNotFound, SymbolNotFound, SymexecFailed
 
 
 logger = logging.getLogger('symex')
@@ -34,17 +36,10 @@ def find_symbol_offset(binary: str, name: str):
 
 def symex(fn_name: str, signature: str, call_loc_info: dict,
         structs: dict, binary: str, verify: bool, dfs: bool, out_file: str,
-        filter_fptr = None, filter_loc: str = None):
+        filter_fptr, filter_loc: str):
     params = parse_signature(signature, structs)
     executor = Executor(binary, call_loc_info, filter_fptr, filter_loc)
     execute = True
-
-    timeout = 15 * 60 # 15 min
-    max_mem = 16 << 30 # 16GiB
-
-    # Does not work ffs
-    # rlimit_mem = max_mem + (4 << 30) # 20GiB hard limit
-    # resource.setrlimit(resource.RLIMIT_RSS, (rlimit_mem, resource.RLIM_INFINITY))
 
     found = None
     discard_output = False
@@ -64,8 +59,8 @@ def symex(fn_name: str, signature: str, call_loc_info: dict,
             fout.write(f"[*] Starting symbolic execution of function {fn_name}\n")
 
             try:
-                found, exec_mem_usage = executor.symbolically_execute(fn_name, params, dfs, timeout, max_mem)
-            except (SymbolNotFound, OutOfMemory, TimeoutExceeded, SymexecFailed) as e:
+                found, exec_mem_usage = executor.symbolically_execute(fn_name, params, dfs)
+            except (SymbolNotFound, SymexecFailed) as e:
                 err = repr(e)
                 logger.error(err)
                 fout.write('[!] ' + err + '\n')
@@ -250,6 +245,51 @@ def symex(fn_name: str, signature: str, call_loc_info: dict,
 
     if discard_output:
         os.remove(out_file)
+
+
+def symex_wrapper(fn_name: str, signature: str, call_loc_info: dict,
+        structs: dict, binary: str, verify: bool, dfs: bool, out_file: str,
+        filter_fptr = None, filter_loc: str = None):
+    max_mem = 16 << 30 # 16GiB
+    max_time = 15 * 60 # 15 min
+
+    args = (fn_name, signature, call_loc_info, structs, binary, verify, dfs, out_file, filter_fptr, filter_loc)
+    proc = Process(target=symex, args=args, daemon=True)
+    proc.start()
+
+    start = time.monotonic()
+
+    while 1:
+        proc.join(1)
+        if proc.exitcode is not None:
+            break
+
+        cur_mem  = cur_memory_usage(proc.pid)
+        cur_time = time.monotonic() - start
+
+        if cur_mem > max_mem:
+            proc.kill()
+            info = f'{cur_mem / 1024 / 1024:.0f} MiB > {max_mem / 1024 / 1024:.0f} MiB'
+            logger.error('Exceeded maximum memory usage: %s', info)
+
+            with open(out_file, 'w') as f:
+                f.write(f'[!] Exceeded maximum memory usage: {info}\n')
+                f.write(f"[+] Completed in {cur_time:.0f} seconds, using {cur_mem / 1024 / 1024:.0f} MiB of memory.\n")
+            break
+
+        if cur_time > max_time:
+            proc.kill()
+            info = f'{cur_time:.2f}s > {max_time:.2f}s'
+            logger.error('Exceeded maximum execution time: %s', info)
+
+            with open(out_file, 'w') as f:
+                f.write(f'[!] Exceeded maximum execution time: {info}\n')
+                f.write(f"[+] Completed in {cur_time:.0f} seconds, using {cur_mem / 1024 / 1024:.0f} MiB of memory.\n")
+            break
+
+    if proc.exitcode is not None and proc.exitcode != 0:
+        with open(out_file, 'w') as f:
+            f.write(f'[!] Symexec failed: process returned {proc.exitcode}\n')
 
 
 ################################################################################
