@@ -79,7 +79,13 @@ def merge(r1, r2):
 funcs = {}
 
 for f in res_dir.iterdir():
-	data = f.open().read()
+	with f.open() as fobj:
+		data = fobj.read()
+
+	# Skip functions that weren't actually found
+	if 'SymbolNotFound' in data:
+		continue
+
 	funcname = f.stem[f.stem.find('_') + 1:]
 
 	m = time_mem_exp.search(data)
