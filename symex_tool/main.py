@@ -41,8 +41,8 @@ def parse_arguments():
     exec_.add_argument('--memory'    , metavar='MEGABYTES', type=int, default=16384, help='maximum amount of memory (RSS) to use during each symbolic execution run (default: 16GiB)')
     exec_.add_argument('library_path', metavar='BUILT_LIBRARY_PATH', help='path to library build directory (created by the "build" subcommand)')
     exec_.add_argument('db_path'     , metavar='CODEQL_DB_PATH'    , help='path to CodeQL database for the library')
-    exec_.add_argument('binary'      , metavar='BINARY'            , help='binary of the built library (e.g. shared object)')
     exec_.add_argument('out_path'    , metavar='OUTPUT_PATH'       , help='output directory (created if needed)')
+    exec_.add_argument('binary'      , metavar='BINARY', nargs='+' , help='binary of the built library (e.g. shared object), more than one can be specified')
 
     exec_filter = sub.add_parser('exec-filter', description='Run symbolic execution only for the matching function pointer calls')
     exec_filter.add_argument('--dfs'       , action='store_true'         , help='use DFS (depth first search) exploration policy for angr (lower memory usage)')
@@ -54,8 +54,8 @@ def parse_arguments():
     exec_filter.add_argument('--loc'       , metavar='LOC_FILTER'        , help='only test reachability of this exact function pointer call location')
     exec_filter.add_argument('library_path', metavar='BUILT_LIBRARY_PATH', help='path to library build directory (created by the "build" subcommand)')
     exec_filter.add_argument('db_path'     , metavar='CODEQL_DB_PATH'    , help='path to CodeQL database for the library')
-    exec_filter.add_argument('binary'      , metavar='BINARY'            , help='binary of the built library (e.g. shared object)')
     exec_filter.add_argument('out_path'    , metavar='OUTPUT_PATH'       , help='output directory (created if needed)')
+    exec_filter.add_argument('binary'      , metavar='BINARY', nargs='+' , help='binary of the built library (e.g. shared object), more than one can be specified')
 
     return parser.parse_args()
 
@@ -159,14 +159,12 @@ def build(library_path, build_path, out_db_path, build_command):
     print('CodeQL database ready at', out_db_path)
 
 
-def exec_all(db_path, built_library_path, binary_path, out_path, resume_idx,
+def exec_all(db_path, built_library_path, binaries, out_path, resume_idx,
         verify, dfs, max_mem, max_time):
     fptrs   = extract_function_pointers(db_path, built_library_path / '.symex_fptrs')
     structs = extract_structs(db_path, built_library_path / '.symex_structs')
 
-    logger.info('Analyzing library "%s"', binary_path)
     out_path.mkdir(exist_ok=True)
-
     exported_funcs = {}
     call_loc_info  = {}
 
@@ -182,10 +180,11 @@ def exec_all(db_path, built_library_path, binary_path, out_path, resume_idx,
         if i < resume_idx:
             continue
 
-        logger.info('[%d/%d] Starting symbolic execution of %s', i, n, exported_func)
+        logger.info('[%d/%d] Function %s', i, n, exported_func)
         symex_out_file = out_path / (f'{i:04d}_{exported_func}.txt')
+
         symex_wrapper(exported_func, signature, call_loc_info, structs,
-            binary_path, verify, dfs, symex_out_file, max_mem, max_time)
+            binaries, verify, dfs, symex_out_file, max_mem, max_time)
 
 
 def exec_filter(db_path, built_library_path, binary_path, out_path, verify, dfs,
@@ -209,9 +208,7 @@ def exec_filter(db_path, built_library_path, binary_path, out_path, verify, dfs,
     fptrs   = extract_function_pointers(db_path, built_library_path / '.symex_fptrs')
     structs = extract_structs(db_path, built_library_path / '.symex_structs')
 
-    logger.info('Analyzing library "%s"', binary_path)
     out_path.mkdir(exist_ok=True)
-
     exported_funcs = {}
     call_loc_info  = {}
 
@@ -229,7 +226,7 @@ def exec_filter(db_path, built_library_path, binary_path, out_path, verify, dfs,
 
         symex_out_file = out_path / (exported_func + '.txt')
         symex_wrapper(exported_func, signature, call_loc_info, structs,
-            binary_path, verify, dfs, symex_out_file, max_mem, max_time,
+            binaries, verify, dfs, symex_out_file, max_mem, max_time,
             filter_fptr, filter_loc)
 
 
@@ -263,15 +260,15 @@ def main():
         list_all(db, lib)
     elif args.subcommand == 'exec-filter':
         lib  = Path(args.library_path)
-        lbin = Path(args.binary)
+        lbins = list(map(Path, args.binary))
         out = Path(args.out_path)
-        exec_filter(db, lib, lbin, out, args.verify, args.dfs, args.function,
+        exec_filter(db, lib, lbins, out, args.verify, args.dfs, args.function,
             args.fptr, args.loc, args.memory, args.timeout)
     else:
         lib  = Path(args.library_path)
-        lbin = Path(args.binary)
+        lbins = list(map(Path, args.binary))
         out = Path(args.out_path)
-        exec_all(db, lib, lbin, out, args.resume, args.verify, args.dfs,
+        exec_all(db, lib, lbins, out, args.resume, args.verify, args.dfs,
             args.memory, args.timeout)
 
 

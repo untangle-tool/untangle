@@ -10,12 +10,13 @@ from typing import List
 from collections import deque
 from subprocess import check_output, check_call, DEVNULL, CalledProcessError
 from tempfile import NamedTemporaryFile
+from pathlib import Path
 from multiprocessing import Process
 
 from .variables import Variable, StructPointer
 from .parser import parse_signature
 from .memory import CustomMemory
-from .utils import cur_memory_usage
+from .utils import cur_memory_usage, nm
 from .executor import Executor, MatchNotFound, SymbolNotFound, SymexecFailed
 
 
@@ -23,24 +24,24 @@ logger = logging.getLogger('symex')
 
 
 def find_symbol_offset(binary: str, name: str):
-    for line in check_output(['nm', binary], text=True).splitlines():
-        if line.startswith(' '):
-            continue
-
-        line = line.strip().split()
-        if line[-1] == name:
-            return int(line[0], 16)
-
-    return None
+    nm(binary).get(name)
 
 
 def symex(fn_name: str, signature: str, call_loc_info: dict,
-        structs: dict, binary: str, verify: bool, dfs: bool, out_file: str,
-        filter_fptr, filter_loc: str):
+        structs: dict, binaries: List[Path], verify: bool, dfs: bool,
+        out_file: str, filter_fptr, filter_loc: str):
+    for binary in binaries:
+        if fn_name in nm(binary):
+            break
+    else:
+        logger.warning('Function "%s" not fonud in the provided binaries', fn_name)
+        return
+
+    logger.info('Starting symbolic execution of %s from %s', fn_name, binary)
+
     params = parse_signature(signature, structs)
     executor = Executor(binary, call_loc_info, filter_fptr, filter_loc)
     execute = True
-
     found = None
     discard_output = False
 

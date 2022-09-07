@@ -7,7 +7,8 @@ from ctypes import CDLL
 from pathlib import Path
 from textwrap import indent
 from typing import Union, Iterable, Any
-from subprocess import Popen, DEVNULL, PIPE
+from subprocess import check_output, Popen, DEVNULL, PIPE
+from functools import lru_cache
 
 logger = logging.getLogger('utils')
 
@@ -69,3 +70,18 @@ def cur_memory_usage(pid: int=0):
     if pid == 0:
         pid = os.getpid()
     return psutil.Process(pid).memory_info().rss
+
+
+@lru_cache()
+def nm(binary: str):
+    res = {}
+
+    for line in check_output(['nm', binary], text=True).splitlines():
+        if line.startswith(' '):
+            continue
+
+        line = line.strip().split()
+        name = line[-1]
+        res[name] = int(line[0], 16)
+
+    return res

@@ -53,7 +53,7 @@ library functions found in the library, trying to reach ***any*** function point
 call:
 
 ```bash
-python3 -m symex_tool.main exec libfoo_build libfoo_db libfoo_build/path/to/libname.so output_dir
+python3 -m symex_tool.main exec libfoo_build libfoo_db output_dir libfoo_build/path/to/libname.so
 ```
 
 Using the `exec-filter` command you can also filter by library function name,
