@@ -109,10 +109,14 @@ def setup_logging(level):
         logging.getLogger('angr.state_plugins.heap.heap_base').setLevel(logging.ERROR)
         # "memcpy upper bound of X outside limit, limiting to 0x1000 instead"
         logging.getLogger('angr.procedures.libc.memcpy').setLevel(logging.ERROR)
-        # {Tried to look up a symbolic fd ..."
+        # "Tried to look up a symbolic fd ..."
         logging.getLogger('angr.state_plugins.posix').setLevel(logging.ERROR)
+        # Badly supported instructions
+        logging.getLogger('pyvex.lifting.gym.x86_spotter').setLevel(logging.ERROR)
+        # "The provided object has an invalid tls_data_size. Skip TLS loading."
+        logging.getLogger('cle.backends.tls').setLevel(logging.ERROR)
 
-    logging.basicConfig(level=level, format=fmt)
+    logging.basicConfig(level=level, format=fmt, datefmt='%Y-%m-%d %H:%M:%S')
     logging.setLogRecordFactory(record_factory)
 
 
