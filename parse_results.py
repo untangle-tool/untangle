@@ -219,17 +219,29 @@ found_mem_avg  = found_mem / found
 print(f'''\
 Total functions tested {total}
   Solution found       {found} ({found / total:.2%})
-    Verified           {verified}
+    Verified           {verified}''')
+
+if verified:
+	print(f'''\
       Ver OK           {ver_ok} ({ver_ok / verified:.2%})
       Ver failed       {ver_fail} ({ver_fail / verified:.2%})
-      Ver errored      {ver_err} ({ver_err / verified:.2%})
-  Solution not found   {notfound} ({notfound / total:.2%})
+      Ver errored      {ver_err} ({ver_err / verified:.2%})''')
+
+print(f'''\
+  Solution not found   {notfound} ({notfound / total:.2%})''')
+
+if notfound:
+	print(f'''\
     Not errored        {noterrored} ({noterrored / notfound:.2%})
-    Errored            {errored} ({errored / notfound:.2%})
+    Errored            {errored} ({errored / notfound:.2%})''')
+
+if errored:
+	print(f'''\
       Out of time      {err_time} ({err_time / errored:.2%})
       Out of memory    {err_mem} ({err_mem / errored:.2%})
-      Symex error      {err_choked} ({err_choked / errored:.2%})
+      Symex error      {err_choked} ({err_choked / errored:.2%})''')
 
+print(f'''
 Total time             {tot_time:.2f} seconds
 Average time           {time_avg:.2f} seconds
 Average memory         {mem_avg:.2f} MiB
@@ -237,5 +249,4 @@ Average memory         {mem_avg:.2f} MiB
 Found total time       {found_time:.2f} seconds
 Found max time         {found_time_max:.2f} seconds
 Found avg time         {found_time_avg:.2f} seconds
-Found avg mem          {found_mem_avg:.0f} MiB
-''')
+Found avg memory       {found_mem_avg:.0f} MiB''')
