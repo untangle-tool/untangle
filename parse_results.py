@@ -171,6 +171,7 @@ tot_mem        = 0 # total mem used
 mem_avg        = 0 # avg mem used
 found_mem      = 0 # total mem used on funcs that returned a found result
 found_mem_avg  = 0 # avg mem used on funcs that returned a found result
+found_mem_max  = 0 # max mem used on single func that returned a found result
 
 
 for funcname, res in funcs.items():
@@ -183,6 +184,7 @@ for funcname, res in funcs.items():
 		found_mem += res.mem
 		found_time += res.time
 		found_time_max = max(found_time_max, res.time)
+		found_mem_max = max(found_mem_max, res.mem)
 	else:
 		notfound += 1
 
@@ -253,6 +255,7 @@ Average time           {time_avg:.2f} seconds
 Average memory         {mem_avg:.2f} MiB
 
 Found total time       {found_time:.2f} seconds
-Found max time         {found_time_max:.2f} seconds
 Found avg time         {found_time_avg:.2f} seconds
-Found avg memory       {found_mem_avg:.0f} MiB''')
+Found max time         {found_time_max:.2f} seconds
+Found avg memory       {found_mem_avg:.0f} MiB
+Found max memory       {found_mem_max:.0f} MiB''')
