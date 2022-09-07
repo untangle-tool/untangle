@@ -84,8 +84,8 @@ for f in res_dir.iterdir():
 
 	m = time_mem_exp.search(data)
 	if not m:
-		# Stop at first incomplete file
-		break
+		# Skip incomplete files
+		continue
 
 	cur = Res()
 	# assert m, f'{f} does not have time/mem info?'
