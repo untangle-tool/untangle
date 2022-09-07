@@ -36,7 +36,7 @@ def parse_signature(signature: str, structs: dict) -> List[Variable]:
                 continue
 
             if '*' in param:
-                typ = 'ptr'
+                typ = '*'
                 size = 8
             else:
                 size = SCALARS[typ]
@@ -142,7 +142,7 @@ SCALARS = {
     'float'             : 4,
     'double'            : 8,
     'long double'       : 16,
-    'ptr'               : 8,
+    '(unnamed enum)'    : 4,
 }
 
 PRIMITIVE_TYPES = {

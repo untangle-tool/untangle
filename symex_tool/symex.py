@@ -185,7 +185,7 @@ def symex(fn_name: str, signature: str, call_loc_info: dict,
                         continue
 
                     val = found.solver.eval(arg.bv)
-                    argtype = 'void *' if arg.type == 'ptr' else arg.type
+                    argtype = 'void *' if arg.type == '*' else arg.type
                     argdefs.append(f'{argtype} param_{i} = ({argtype})0x{val:x};')
                     argtypes.append(argtype)
 
