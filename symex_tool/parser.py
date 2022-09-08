@@ -130,14 +130,19 @@ def parse_struct_ptr(name: str, struct_name: str, structs: Dict[str,Struct]) -> 
 SCALARS = {
     'bool'              : 1,
     'char'              : 1,
+    'signed char'       : 1,
     'unsigned char'     : 1,
     'short'             : 2,
+    'signed short'      : 2,
     'unsigned short'    : 2,
     'int'               : 4,
+    'signed int'        : 4,
     'unsigned int'      : 4,
     'long'              : 8,
+    'signed long'       : 8,
     'unsigned long'     : 8,
     'long long'         : 8,
+    'signed long long'  : 8,
     'unsigned long long': 8,
     'float'             : 4,
     'double'            : 8,
@@ -166,5 +171,7 @@ INTS = [
 for t in INTS:
     PRIMITIVE_TYPES.add(t)
     PRIMITIVE_TYPES.add(t + ' *')
+    PRIMITIVE_TYPES.add('signed ' + t)
+    PRIMITIVE_TYPES.add('signed ' + t + ' *')
     PRIMITIVE_TYPES.add('unsigned ' + t)
     PRIMITIVE_TYPES.add('unsigned ' + t + ' *')
