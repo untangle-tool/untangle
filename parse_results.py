@@ -7,12 +7,16 @@ import sys
 import os
 import re
 from pathlib import Path
+from functools import lru_cache
+from subprocess import check_output
 
-if len(sys.argv) != 2:
-	sys.exit(f'Usage: {sys.argv[0]} RESULT_DIR')
+if len(sys.argv) < 2:
+	sys.exit(f'Usage: {sys.argv[0]} RESULT_DIR [BINARY ...]')
 
 res_dir = Path(sys.argv[1])
+binaries = list(map(Path, sys.argv[2:]))
 time_mem_exp = re.compile(r'Completed in ([\d.]+) seconds, using (\d+) MiB of memory')
+nm_exp = re.compile(r'[\da-fA-F]+\s+T\s+([^@\s]+)')
 
 class Res:
 	funcname: str
@@ -75,8 +79,21 @@ def merge(r1, r2):
 
 	return r
 
+@lru_cache()
+def nm(binary: str):
+	res = set()
+
+	for line in check_output(('nm', '-D', binary), text=True).splitlines():
+		m = nm_exp.match(line)
+		if m is None:
+			continue
+
+		res.add(m.group(1))
+
+	return res
 
 funcs = {}
+unexported = 0
 
 for f in res_dir.iterdir():
 	with f.open() as fobj:
@@ -88,13 +105,21 @@ for f in res_dir.iterdir():
 
 	funcname = f.stem[f.stem.find('_') + 1:]
 
+	# Skip functions that are not exported
+	if binaries:
+		for binary in binaries:
+			if funcname in nm(binary):
+				break
+		else:
+			unexported += 1
+			continue
+
 	m = time_mem_exp.search(data)
 	if not m:
 		# Skip incomplete files
 		continue
 
 	cur = Res()
-	# assert m, f'{f} does not have time/mem info?'
 	cur.time, cur.mem = float(m.group(1)), float(m.group(2))
 
 	if 'Exceeded maximum memory usage' in data:
@@ -146,6 +171,8 @@ for f in res_dir.iterdir():
 
 	funcs[funcname] = cur
 
+if unexported:
+	print('Skipped', unexported, 'unexported functions', end='\n\n')
 
 total    = 0 # total funcs analyzed
 found    = 0 # funcs for which symex found a result
@@ -210,6 +237,9 @@ for funcname, res in funcs.items():
 		else:
 			assert False
 
+if total == 0:
+	print(f'Nothing to do here...')
+	sye.exit(0)
 
 assert found + notfound == total
 assert found == verified
@@ -225,37 +255,37 @@ found_mem_avg  = found_mem / found
 
 
 print(f'''\
-Total functions tested {total}
-  Solution found       {found} ({found / total:.2%})
-    Verified           {verified}''')
+Total functions       {total}
+  Solution found      {found} ({found / total:.2%})
+    Verified          {verified}''')
 
 if verified:
 	print(f'''\
-      Ver OK           {ver_ok} ({ver_ok / verified:.2%})
-      Ver failed       {ver_fail} ({ver_fail / verified:.2%})
-      Ver errored      {ver_err} ({ver_err / verified:.2%})''')
+      Ver OK          {ver_ok} ({ver_ok / verified:.2%})
+      Ver failed      {ver_fail} ({ver_fail / verified:.2%})
+      Ver errored     {ver_err} ({ver_err / verified:.2%})''')
 
 print(f'''\
-  Solution not found   {notfound} ({notfound / total:.2%})''')
+  Solution not found  {notfound} ({notfound / total:.2%})''')
 
 if notfound:
 	print(f'''\
-    Not errored        {noterrored} ({noterrored / notfound:.2%})
-    Errored            {errored} ({errored / notfound:.2%})''')
+    Not errored       {noterrored} ({noterrored / notfound:.2%})
+    Errored           {errored} ({errored / notfound:.2%})''')
 
 if errored:
 	print(f'''\
-      Out of time      {err_time} ({err_time / errored:.2%})
-      Out of memory    {err_mem} ({err_mem / errored:.2%})
-      Symex error      {err_choked} ({err_choked / errored:.2%})''')
+      Out of time     {err_time} ({err_time / errored:.2%})
+      Out of memory   {err_mem} ({err_mem / errored:.2%})
+      Symex error     {err_choked} ({err_choked / errored:.2%})''')
 
 print(f'''
-Total time             {tot_time:.2f} seconds
-Average time           {time_avg:.2f} seconds
-Average memory         {mem_avg:.2f} MiB
+Total time            {tot_time:.2f} seconds
+Average time          {time_avg:.2f} seconds
+Average memory        {mem_avg:.2f} MiB
 
-Found total time       {found_time:.2f} seconds
-Found avg time         {found_time_avg:.2f} seconds
-Found max time         {found_time_max:.2f} seconds
-Found avg memory       {found_mem_avg:.0f} MiB
-Found max memory       {found_mem_max:.0f} MiB''')
+Found total time      {found_time:.2f} seconds
+Found avg time        {found_time_avg:.2f} seconds
+Found max time        {found_time_max:.2f} seconds
+Found avg memory      {found_mem_avg:.0f} MiB
+Found max memory      {found_mem_max:.0f} MiB''')

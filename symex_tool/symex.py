@@ -16,34 +16,32 @@ from multiprocessing import Process
 from .variables import Variable, StructPointer
 from .parser import parse_signature
 from .memory import CustomMemory
-from .utils import cur_memory_usage, nm
+from .utils import cur_memory_usage, exported_functions
 from .executor import Executor, MatchNotFound, SymbolNotFound, SymexecFailed
 
 
 logger = logging.getLogger('symex')
 
 
-def find_symbol_offset(binary: str, name: str):
-    nm(binary).get(name)
-
-
 def symex(fn_name: str, signature: str, call_loc_info: dict,
         structs: dict, binaries: List[Path], verify: bool, dfs: bool,
         out_file: str, filter_fptr, filter_loc: str):
-    for binary in binaries:
-        if fn_name in nm(binary):
-            break
-    else:
-        logger.warning('Function "%s" not fonud in the provided binaries', fn_name)
-        return
-
-    logger.info('Starting symbolic execution of %s from %s', fn_name, binary)
-
-    params = parse_signature(signature, structs)
-    executor = Executor(binary, call_loc_info, filter_fptr, filter_loc)
+    symbol_offset = None
     execute = True
     found = None
     discard_output = False
+
+    for binary in binaries:
+        symbol_offset = exported_functions(binary).get(fn_name)
+        if symbol_offset is not None:
+            break
+    else:
+        logger.error('Function "%s" not exported by provided binaries', fn_name)
+        return
+
+    logger.info('Starting symbolic execution of %s from %s', fn_name, binary)
+    params = parse_signature(signature, structs)
+    executor = Executor(binary, call_loc_info, filter_fptr, filter_loc)
 
     with open(out_file, 'w') as fout:
         if any(param.size is None for param in params):
@@ -190,7 +188,6 @@ def symex(fn_name: str, signature: str, call_loc_info: dict,
                     argdefs.append(f'{argtype} param_{i} = ({argtype})0x{val:x};')
                     argtypes.append(argtype)
 
-            symbol_offset = find_symbol_offset(binary, fn_name)
             if symbol_offset is None:
                 logger.error('Verification error: could not find symbol "%s" in binary', fn_name)
                 fout.write('[!] Verification errored')

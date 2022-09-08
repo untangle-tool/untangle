@@ -12,7 +12,7 @@ from .codeql import build_codeql_db
 from .analyzer import extract_function_pointers, extract_structs
 from .instrumenter import instrument_library_source
 from .symex import symex_wrapper
-from .utils import ensure_command, save_object
+from .utils import ensure_command, save_object, exported_functions
 
 
 logger = logging.getLogger('main')
@@ -159,31 +159,41 @@ def build(library_path, build_path, out_db_path, build_command):
     print('CodeQL database ready at', out_db_path)
 
 
+def is_exported(library_func, binaries):
+    for b in binaries:
+        if library_func in exported_functions(b):
+            return True
+    return False
+
+
 def exec_all(db_path, built_library_path, binaries, out_path, resume_idx,
         verify, dfs, max_mem, max_time):
     fptrs   = extract_function_pointers(db_path, built_library_path / '.symex_fptrs')
     structs = extract_structs(db_path, built_library_path / '.symex_structs')
 
     out_path.mkdir(exist_ok=True)
-    exported_funcs = {}
+    library_funcs = {}
     call_loc_info  = {}
 
-    for func_ptr_name, call_loc, call_id, exported_func, signature in fptrs:
-        exported_funcs[exported_func] = signature
+    for func_ptr_name, call_loc, call_id, library_func, signature in fptrs:
+        library_funcs[library_func] = signature
         if call_id not in call_loc_info:
             call_loc_info[call_id] = (func_ptr_name, call_loc, set())
-        call_loc_info[call_id][-1].add(exported_func)
+        call_loc_info[call_id][-1].add(library_func)
 
-    n = len(exported_funcs)
+    n = len(library_funcs)
 
-    for i, (exported_func, signature) in enumerate(exported_funcs.items(), 1):
+    for i, (library_func, signature) in enumerate(library_funcs.items(), 1):
         if i < resume_idx:
             continue
 
-        logger.info('[%d/%d] Function %s', i, n, exported_func)
-        symex_out_file = out_path / (f'{i:04d}_{exported_func}.txt')
+        if not is_exported(library_func, binaries):
+            logger.info('[%d/%d] Skipping unexported function %s', i, n, library_func)
+            continue
 
-        symex_wrapper(exported_func, signature, call_loc_info, structs,
+        logger.info('[%d/%d] Function %s', i, n, library_func)
+        symex_out_file = out_path / (f'{i:04d}_{library_func}.txt')
+        symex_wrapper(library_func, signature, call_loc_info, structs,
             binaries, verify, dfs, symex_out_file, max_mem, max_time)
 
 
@@ -209,23 +219,27 @@ def exec_filter(db_path, built_library_path, binary_path, out_path, verify, dfs,
     structs = extract_structs(db_path, built_library_path / '.symex_structs')
 
     out_path.mkdir(exist_ok=True)
-    exported_funcs = {}
+    library_funcs = {}
     call_loc_info  = {}
 
-    for func_ptr_name, call_loc, call_id, exported_func, signature in fptrs:
-        exported_funcs[exported_func] = signature
+    for func_ptr_name, call_loc, call_id, library_func, signature in fptrs:
+        library_funcs[library_func] = signature
         if call_id not in call_loc_info:
             call_loc_info[call_id] = (func_ptr_name, call_loc, set())
-        call_loc_info[call_id][-1].add(exported_func)
+        call_loc_info[call_id][-1].add(library_func)
 
 
-    for exported_func, signature in exported_funcs.items():
-        if filter_func is not None and filter_func.search(exported_func) is None:
-            logger.debug('Skipping %s based on provided filter', exported_func)
+    for library_func, signature in library_funcs.items():
+        if not is_exported(library_func, binaries):
+            logger.info('Skipping unexported function %s', i, n, library_func)
             continue
 
-        symex_out_file = out_path / (exported_func + '.txt')
-        symex_wrapper(exported_func, signature, call_loc_info, structs,
+        if filter_func is not None and filter_func.search(library_func) is None:
+            logger.debug('Skipping function %s based on provided filter', library_func)
+            continue
+
+        symex_out_file = out_path / (library_func + '.txt')
+        symex_wrapper(library_func, signature, call_loc_info, structs,
             binaries, verify, dfs, symex_out_file, max_mem, max_time,
             filter_fptr, filter_loc)
 
@@ -234,15 +248,15 @@ def list_all(db_path, built_library_path):
     fptrs = extract_function_pointers(db_path, built_library_path / '.symex_fptrs')
     by_fptr = defaultdict(set)
 
-    for fptr, call_loc, call_id, exported_func, signature in fptrs:
-        by_fptr[fptr].add((exported_func, call_loc))
+    for fptr, call_loc, call_id, library_func, signature in fptrs:
+        by_fptr[fptr].add((library_func, call_loc))
 
     print('{:40s} {:40s} {}'.format('Function pointer', 'Library function', 'Call location'))
 
     for fptr, subset in sorted(by_fptr.items()):
-        for exported_func, call_loc in sorted(subset):
+        for library_func, call_loc in sorted(subset):
             call_loc = ':'.join(map(str, call_loc))
-            print('{:40s} {:40s} {}'.format(fptr, exported_func, call_loc))
+            print('{:40s} {:40s} {}'.format(fptr, library_func, call_loc))
 
 
 def main():

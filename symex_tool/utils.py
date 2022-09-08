@@ -1,12 +1,14 @@
 import os
+import re
 import sys
 import pickle
 import logging
 import psutil
+from shutil import which
 from ctypes import CDLL
 from pathlib import Path
 from textwrap import indent
-from typing import Union, Iterable, Any
+from typing import Union, Iterable, Any, Dict
 from subprocess import check_output, Popen, DEVNULL, PIPE
 from functools import lru_cache
 
@@ -73,15 +75,34 @@ def cur_memory_usage(pid: int=0):
 
 
 @lru_cache()
-def nm(binary: str):
+def exported_functions(binary: Union[str,Path]) -> Dict[str,int]:
     res = {}
 
-    for line in check_output(['nm', binary], text=True).splitlines():
-        if line.startswith(' '):
-            continue
+    if which('nmasd'):
+        exp = re.compile(r'([\da-fA-F]+)\s+T\s+([^@\s]+)')
 
-        line = line.strip().split()
-        name = line[-1]
-        res[name] = int(line[0], 16)
+        for line in check_output(('nm', '-D', binary), text=True).splitlines():
+            m = exp.match(line)
+            if m is None:
+                continue
+
+            off, name = m.groups()
+            res[name] = int(off, 16)
+    elif which('readelf'):
+        exp = re.compile(r'\s*\d+:\s+([\da-fA-F]+)\s+\d+\s+(\w+)\s+(\w+)\s+\w+\s+(\w+)\s+([^@\s]+)')
+
+        for line in check_output(('readelf', '-Ws', '--dyn-syms', binary), text=True).splitlines():
+            m = exp.match(line)
+            if m is None:
+                continue
+
+            off, typ, bind, ndx, name = m.groups()
+            if typ != 'FUNC' or bind != 'GLOBAL' or ndx == 'UND':
+                continue
+
+            res[name] = int(off, 16)
+    else:
+        logging.critical('Need either "nm" or "readelf" to be available')
+        sys.exit(1)
 
     return res
