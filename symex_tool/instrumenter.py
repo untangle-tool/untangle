@@ -50,8 +50,11 @@ def instrument_library_source(lib_src_path, function_pointers):
         file_path = os.path.join(lib_src_path, file_name)
         start_line, start_column, end_line, end_column = call_loc[1:]
 
-        with open(file_path, "r") as f:
-            file_lines = f.readlines()
+        try:
+            with open(file_path, "r") as f:
+                file_lines = f.readlines()
+        except FileNotFoundError:
+            continue
 
         # Create the define based on the actual function call
         line_no = start_line + number_lines_added[file_path] - 1
