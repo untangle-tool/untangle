@@ -72,6 +72,12 @@ def parse_struct_ptr(name: str, struct_name: str, structs: Dict[str,Struct]) -> 
             if ftype.endswith(']'):
                 start = ftype.rfind('[')
                 array_sz = int(ftype[start + 1:-1])
+
+                if array_sz == 0:
+                    # Flexible array member, can't handle these
+                    cur.fields[f.offset] = (f.name, f.size)
+                    continue
+
                 ftype = ftype[:start]
                 fsize //= array_sz
 
