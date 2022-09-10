@@ -1,8 +1,10 @@
-# Title - TBD
+# Untangle
 
-The purpose of this tool is to find calls to function pointers inside the
-functions a library, and to find the values of global variables and parameters
-that are needed to get to the function pointer call.
+The purpose of this tool is to find calls to global function pointers happening
+in the code of a C library, then instrument and compile the library, and using
+symbolic execution, find the values for function parameters and global variables
+needed to reach the identified global function pointer calls starting froma
+given exported library function.
 
 ## Requirements
 
@@ -11,6 +13,7 @@ that are needed to get to the function pointer call.
 * Python >= 3.7 (PyPy recommended)
 * Python modules listed in `requirements.txt`, intallable through
   `pip install -r requirements.txt`
+* Either GNU `nm` or `readelf`.
 
 ## Usage
 
@@ -26,7 +29,7 @@ First of all, prepare the library you want to analyze:
    for the library (e.g. `make -j`) as command-line argument:
 
     ```bash
-    python3 -m symex_tool.main build libfoo_source libfoo_build libfoo_db "lib_build_command"
+    python3 -m untangle.main build libfoo_source libfoo_build libfoo_db "lib_build_command"
     ```
 
    This will create and build an instrumented modified copy of the library
@@ -45,7 +48,7 @@ with the location of their calls and the library function through which such
 locations may be reachable:
 
 ```bash
-python3 -m symex_tool.main list libfoo_build libfoo_db
+python3 -m untangle.main list libfoo_build libfoo_db
 ```
 
 Using the `exec` command you can start symbolic execution of all interesting
@@ -53,7 +56,7 @@ library functions found in the library, trying to reach ***any*** function point
 call:
 
 ```bash
-python3 -m symex_tool.main exec libfoo_build libfoo_db output_dir libfoo_build/path/to/libname.so
+python3 -m untangle.main exec libfoo_build libfoo_db output_dir libfoo_build/path/to/libname.so
 ```
 
 Using the `exec-filter` command you can also filter by library function name,
@@ -61,8 +64,8 @@ function pointer name, or exact location (this information is taken from the
 `list` command):
 
 ```bash
-python3 -m symex_tool.main exec-filter --functoin 'foo_[a-z]+' --fptr 'foo_hook_(one|two)' ...
-python3 -m symex_tool.main exec-filter --loc 'src/foo.c:123:10:123:20' ...
+python3 -m untangle.main exec-filter --functoin 'foo_[a-z]+' --fptr 'foo_hook_(one|two)' ...
+python3 -m untangle.main exec-filter --loc 'src/foo.c:123:10:123:20' ...
 ```
 
 You can also try to automatically verify the correctness of the results by
