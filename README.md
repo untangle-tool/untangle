@@ -74,7 +74,7 @@ passing `--verify` to either `exec` or `exec-filter`.
 ## Publication
 We wrote a paper titled "Untangle: Aiding Global Function Pointer Hijacking for Post-CET Binary Exploitation", which explains the purpose of this tool, its structure and its inner workings. This paper was recently published at the 20th Conference on Detection of Intrusions and Malware & Vulnerability Assessment (DIMVA 2023). You can find it at the following link: https://doi.org/10.1007/978-3-031-35504-2_13.
 
-If you want to cite our work, you can use the following BiBTeX citation:
+If you want to cite our work, you can use the following BibTeX citation:
 ```
 @InProceedings{10.1007/978-3-031-35504-2_13,
 author="Bertani, Alessandro and Bonelli, Marco and Binosi, Lorenzo and Carminati, Michele and Zanero, Stefano and Polino, Mario",
