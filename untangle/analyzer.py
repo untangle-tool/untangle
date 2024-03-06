@@ -86,13 +86,13 @@ from Struct s, Field f
 where
     f = s.getAField()
 select
-    s as Struct,
-    s.getSize() as StructSize,
-    f as Field,
-    f.getType().getUnspecifiedType() as Type,
-    f.getByteOffset() as Offset,
-    f.getType().getSize() as Size
-order by Struct, Offset
+    s as struct,
+    s.getSize() as structSize,
+    f as field,
+    f.getType().getUnspecifiedType() as type,
+    f.getByteOffset() as offset,
+    f.getType().getSize() as size
+order by struct, offset
 '''
 
 FUNC_PTRS_QUERY = '''
@@ -150,18 +150,18 @@ where
     and leaf = va.getEnclosingFunction()
     and root = leaf.getARootExportedFunc()
 select
-    v as Variable,
-    t as Type,
-    v.getLocation().getFile().getRelativePath() + ":" + v.getLocation().getStartLine() as DeclLocation,
-    leaf.getQualifiedName() as CallerFunc,
-    l.getFile().getRelativePath() as CallFile,
-    l.getStartLine() as CallStartRow,
-    l.getStartColumn() as CallStartCol,
-    l.getEndLine() as CallEndRow,
-    l.getEndColumn() as CallEndCol,
-    root.getQualifiedName() as ExportedFunc,
-    root.getLocation().getFile().getRelativePath() + ":" + root.getLocation().getStartLine() as Location,
-    root.getSimplifiedSignature() as Signature
+    v as variable,
+    t as type,
+    v.getLocation().getFile().getRelativePath() + ":" + v.getLocation().getStartLine() as declLocation,
+    leaf.getQualifiedName() as callerFunc,
+    l.getFile().getRelativePath() as callFile,
+    l.getStartLine() as callStartRow,
+    l.getStartColumn() as callStartCol,
+    l.getEndLine() as callEndRow,
+    l.getEndColumn() as callEndCol,
+    root.getQualifiedName() as exportedFunc,
+    root.getLocation().getFile().getRelativePath() + ":" + root.getLocation().getStartLine() as location,
+    root.getSimplifiedSignature() as signature
 '''
 
 if __name__ == '__main__':
