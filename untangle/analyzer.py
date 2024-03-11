@@ -46,7 +46,7 @@ def extract_function_pointers(codeql_db_path, cache_fname=None):
             return res
 
     logger.debug('Extracting global function pointers from CodeQL DB "%s"', codeql_db_path)
-    rows = run_codeql_query(codeql_db_path, FUNC_PTRS_QUERY)
+    rows = run_codeql_query(codeql_db_path, FUNC_PTRS_TAINT_QUERY)
 
     fptr_decls = {}
     fptr_calls = defaultdict(lambda: defaultdict(list))
@@ -162,6 +162,94 @@ select
     root.getQualifiedName() as ExportedFunc,
     root.getLocation().getFile().getRelativePath() + ":" + root.getLocation().getStartLine() as Location,
     root.getSimplifiedSignature() as Signature
+'''
+
+FUNC_PTRS_TAINT_QUERY = '''
+import cpp
+import semmle.code.cpp.dataflow.TaintTracking
+
+class FancyFunc extends Function {
+    predicate isExported() {
+        not this.isStatic()
+    }
+
+    FancyFunc getACaller() {
+        result = this.getACallToThisFunction().getEnclosingFunction()
+    }
+
+    FancyFunc getARootExportedFunc() {
+        result = this.getACaller*() and result.isExported()
+    }
+
+    private string stringifyParam(Parameter p) {
+        if p.getUnderlyingType() instanceof Enum
+        then result = "int" // NOTE: C++11 enums may have different enum-base
+        else result = p.getUnderlyingType().getUnspecifiedType().toString()
+    }
+
+    private string sig(Parameter cur, int nLeft) {
+        if nLeft = 0
+        then result = this.stringifyParam(cur)
+        else result = (this.stringifyParam(cur) + ", "
+            + this.sig(this.getParameter(this.getNumberOfParameters() - nLeft), nLeft - 1))
+    }
+
+    string getSimplifiedSignature() {
+        (this.getNumberOfParameters() = 0 and result = "void")
+        or
+        result = this.sig(this.getParameter(0), this.getNumberOfParameters() - 1)
+    }
+}
+
+module FunctionPointerConfiguration implements DataFlow::ConfigSig {
+  predicate isSource(DataFlow::Node node) {
+    exists(FunctionPointerIshType func |
+      // the source must be function pointer type
+        node.getType() = func or
+        node.getType().getUnderlyingType() = func 
+
+    )
+  }
+
+  predicate isSink(DataFlow::Node node) {
+    exists(VariableAccess va, VariableCall vc, GlobalVariable gv | 
+        // the sink must be a variable access
+        va = node.asExpr() 
+        // the variable access must be a call
+        and va = vc.getExpr()
+        // the variable must be global variable?
+        // and va.getType() = gv.getType()
+    )
+  }
+}
+
+module MyDataFlow = TaintTracking::Global<FunctionPointerConfiguration>;
+
+from 
+  DataFlow::Node var,
+  DataFlow::Node call,
+  FancyFunc leaf,
+  FancyFunc root
+where 
+  MyDataFlow::flow(var, call)
+  and leaf = call.getEnclosingCallable()
+  and root = leaf.getARootExportedFunc()
+select 
+  call.asExpr() as variable,
+  call.getType() as type,
+  //declLocation
+  root.getLocation().getFile().getRelativePath() + ":" +
+    root.getLocation().getStartLine() as declLocation,
+  leaf.getQualifiedName() as callerFunc,
+  call.getLocation().getFile().getRelativePath() as callFile,
+  call.getLocation().getStartLine() as callStartRow,
+  call.getLocation().getStartColumn() as callStartCol,
+  call.getLocation().getEndLine() as callEndRow,
+  call.getLocation().getEndColumn() as callEndCol,
+  root.getQualifiedName() as exportedFunc,
+  root.getLocation().getFile().getRelativePath() + ":" +
+    root.getLocation().getStartLine() as location,
+  root.getSimplifiedSignature() as signtature
 '''
 
 if __name__ == '__main__':
