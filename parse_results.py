@@ -239,7 +239,7 @@ for funcname, res in funcs.items():
 
 if total == 0:
 	print(f'Nothing to do here...')
-	sye.exit(0)
+	sys.exit(0)
 
 assert found + notfound == total
 assert found == verified
@@ -250,8 +250,12 @@ noterrored = notfound - errored
 
 mem_avg        = tot_mem / total
 time_avg       = tot_time / total
-found_time_avg = found_time / found
-found_mem_avg  = found_mem / found
+if found > 0:
+	found_time_avg = found_time / found
+	found_mem_avg  = found_mem / found
+else:
+	found_time_avg = 0
+	found_mem_avg = 0
 
 
 print(f'''\
