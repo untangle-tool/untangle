@@ -1,5 +1,6 @@
 import os
 import logging
+import re
 from collections import defaultdict
 
 logger = logging.getLogger('instrumenter')
@@ -34,6 +35,35 @@ def generate_fn_definition(func_ptr: str, call_loc_id: int, actual_call: str):
         "}\n",
     ]
 
+def get_right_hand_side(line: str) -> str:
+    two_sides = line.split("=")
+    if len(two_sides) > 1:
+        right_hand_side = two_sides[1]
+    else:
+        right_hand_side = two_sides[0]
+
+    return right_hand_side
+
+def is_member_call(line: str, funcptr: str) -> bool:
+    right_hand_side = get_right_hand_side(line)
+    # Understand if func_ptr is preceded by "->" or "."
+    funcptr_start = right_hand_side.find(funcptr)
+    substr = right_hand_side[:funcptr_start]
+    if "." in substr:
+        call_symbol_start = substr.rfind(".")
+        call_symbol_end = call_symbol_start + len(".")
+    elif "->" in substr:
+        call_symbol_start = substr.rfind("->")
+        call_symbol_end = call_symbol_start + len("->")
+    else:
+        return False
+    
+    substring_between = right_hand_side[call_symbol_end:funcptr_start]
+    return substring_between.isspace() or substring_between == ""
+
+def get_call_chain(line: str, funcptr: str):
+    regex = r'([a-zA-Z_&\d]*\s*(->|\.)\s*[a-zA-Z_&\d]*)+'
+    return re.search(regex, line[:line.find(funcptr)+len(funcptr)]).group(0)
 
 def instrument_library_source(lib_src_path, function_pointers):
     number_lines_added = defaultdict(int)
@@ -60,10 +90,20 @@ def instrument_library_source(lib_src_path, function_pointers):
         line_no = start_line + number_lines_added[file_path] - 1
         first_parenthesis = file_lines[line_no].find("(", start_column)
 
-        if first_parenthesis == -1:
-            actual_call = file_lines[line_no][start_column-1:end_column].strip()
+        # Look if it is a member call of a struct
+        if is_member_call(file_lines[line_no], funcptr=func_ptr):
+            logger.info(f"Found struct call (funcptr {func_ptr}): {file_lines[line_no].strip()}")
+            # Replace entire call chain
+            actual_call = get_call_chain(file_lines[line_no], func_ptr).strip()
+            logger.info(f"Complete call: {actual_call}")
+            start_column = file_lines[line_no].find(actual_call)
+            logger.info(f"Call is at {call_loc}, column {start_column}")
         else:
-            actual_call = file_lines[line_no][start_column-1:first_parenthesis]
+            if first_parenthesis == -1:
+                actual_call = file_lines[line_no][start_column-1:end_column].strip()
+            else:
+                actual_call = file_lines[line_no][start_column-1:first_parenthesis]
+            start_column -= 1
 
         definition = generate_fn_definition(func_ptr, call_loc_id, actual_call)
 
@@ -75,10 +115,10 @@ def instrument_library_source(lib_src_path, function_pointers):
 
         # Replace only the characters between "start_column" and the first parenthesis found.
         if first_parenthesis != -1:
-            file_lines[line_no] = file_lines[line_no][:start_column-1] + f"SYMEX_WRAPPER_{func_ptr}_{call_loc_id}" + file_lines[line_no][first_parenthesis:]
+            file_lines[line_no] = file_lines[line_no][:start_column] + f"SYMEX_WRAPPER_{func_ptr}_{call_loc_id}" + file_lines[line_no][first_parenthesis:]
         else:
             # If no parenthesis is found, the arguments could just be on the next row, no need to worry
-            file_lines[line_no] = file_lines[line_no][:start_column-1] + f"SYMEX_WRAPPER_{func_ptr}_{call_loc_id}\n"
+            file_lines[line_no] = file_lines[line_no][:start_column] + f"SYMEX_WRAPPER_{func_ptr}_{call_loc_id}\n"
 
         # If the call is on one line and there is no semi-colon, add one.
         # if monoline_function_call(file_lines[line_no]) and not ';' in file_lines[line_no]:
