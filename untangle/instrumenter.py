@@ -62,7 +62,7 @@ def is_member_call(line: str, funcptr: str) -> bool:
     return substring_between.isspace() or substring_between == ""
 
 def get_call_chain(line: str, funcptr: str):
-    regex = r'([a-zA-Z_&\d]*\s*(->|\.)\s*[a-zA-Z_&\d]*)+'
+    regex = r'([\(]*[a-zA-Z_&\d\[\]]*[\)]*\s*(->|\.)\s*[\(]*[a-zA-Z_&\d]*[\)]*)+'
     return re.search(regex, line[:line.find(funcptr)+len(funcptr)]).group(0)
 
 def instrument_library_source(lib_src_path, function_pointers):
