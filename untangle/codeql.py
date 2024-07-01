@@ -9,15 +9,18 @@ from .utils import ensure_command
 
 logger = logging.getLogger('codeql')
 
-def build_codeql_db(library_path, out_db_path, build_command):
+def build_codeql_db(library_path, out_db_path, build_command, autobuild):
     '''Create a CodeQL database for a given libary by building it using a given
     build command.
     '''
-
-    args = (
-        'codeql', 'database', 'create', out_db_path,
-        '--language=cpp', '--overwrite', '--command', build_command
-    )
+    if autobuild:
+        args = ('codeql', 'database', 'create', out_db_path,
+        '--language=cpp', '--overwrite')
+    else:
+        args = (
+            'codeql', 'database', 'create', out_db_path,
+            '--language=cpp', '--overwrite', '--command', build_command
+        )
 
     ensure_command(args, cwd=library_path)
 

@@ -24,10 +24,12 @@ def parse_arguments():
 
     sub = parser.add_subparsers(dest='subcommand')
     build = sub.add_parser('build', description='Build a CodeQL database and built an instrument version of the given library for subsequent symbolic execution')
+    build.add_argument('--autobuild', action="store_true", help='Let CodeQL automatically build the database')
     build.add_argument('library_path' , metavar='LIBRARY_PATH'  , help='path to library source directory')
     build.add_argument('build_path'   , metavar='OUT_BUILD_PATH', help='path to directory where the library will be copied and built')
     build.add_argument('db_path'      , metavar='OUT_DB_NAME'   , help='name of the CodeQL database to create')
     build.add_argument('build_command', metavar='BUILD_COMMAND' , help='command to use to build the libray')
+    
 
     list_ = sub.add_parser('list', description='List information about all discovered function pointer call sites')
     list_.add_argument('library_path', metavar='BUILT_LIBRARY_PATH', help='path to library build directory (created by the "build" subcommand)')
@@ -120,7 +122,7 @@ def setup_logging(level):
     logging.setLogRecordFactory(record_factory)
 
 
-def build(library_path, build_path, out_db_path, build_command):
+def build(library_path, build_path, out_db_path, build_command, autobuild):
     '''Build library at the given source directory path using build_command and
     create a CodeQL database for it.
     '''
@@ -133,7 +135,7 @@ def build(library_path, build_path, out_db_path, build_command):
     logger.info('Library copy created at %s', build_path)
 
     logger.info('Building CodeQL database for the original library')
-    build_codeql_db(library_path, out_db_path, build_command)
+    build_codeql_db(library_path, out_db_path, build_command, autobuild)
 
     logger.info('Extracting function pointers from CodeQL database')
     fptrs = extract_function_pointers(out_db_path)
@@ -268,7 +270,7 @@ def main():
     if args.subcommand == 'build':
         lib = Path(args.library_path).absolute()
         lib_build = Path(args.build_path).absolute()
-        build(lib, lib_build, db, args.build_command)
+        build(lib, lib_build, db, args.build_command, args.autobuild)
     elif args.subcommand == 'list':
         lib = Path(args.library_path).absolute()
         list_all(db, lib)
