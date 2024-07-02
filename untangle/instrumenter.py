@@ -27,14 +27,14 @@ def monoline_function_call(line: str):
 
 def generate_fn_definition(func_ptr: str, call_loc_id: int, actual_call: str):
     return [
-        f"#ifndef SYMEX_WRAPPER_{func_ptr}_{call_loc_id}",
+        f"#ifndef SYMEX_WRAPPER_{func_ptr}_{call_loc_id}\n",
         f"#define SYMEX_WRAPPER_{func_ptr}_{call_loc_id}(...) (SYMEX_TARGET_{func_ptr}_{call_loc_id}(), ({{{actual_call}(__VA_ARGS__);}}))\n",
         f"unsigned SYMEX_NOOPT_{func_ptr}_{call_loc_id} = 0;\n",
         f"void SYMEX_TARGET_{func_ptr}_{call_loc_id}(void);\n",
         f"void __attribute__((noinline)) SYMEX_TARGET_{func_ptr}_{call_loc_id}(void){{\n",
         f"\tSYMEX_NOOPT_{func_ptr}_{call_loc_id}++;\n",
         "}\n",
-        "#endif"
+        "#endif\n"
     ]
 
 def get_right_hand_side(line: str) -> str:
