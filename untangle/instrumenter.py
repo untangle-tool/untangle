@@ -27,12 +27,14 @@ def monoline_function_call(line: str):
 
 def generate_fn_definition(func_ptr: str, call_loc_id: int, actual_call: str):
     return [
+        f"#ifndef SYMEX_WRAPPER_{func_ptr}_{call_loc_id}",
         f"#define SYMEX_WRAPPER_{func_ptr}_{call_loc_id}(...) (SYMEX_TARGET_{func_ptr}_{call_loc_id}(), ({{{actual_call}(__VA_ARGS__);}}))\n",
         f"unsigned SYMEX_NOOPT_{func_ptr}_{call_loc_id} = 0;\n",
         f"void SYMEX_TARGET_{func_ptr}_{call_loc_id}(void);\n",
         f"void __attribute__((noinline)) SYMEX_TARGET_{func_ptr}_{call_loc_id}(void){{\n",
         f"\tSYMEX_NOOPT_{func_ptr}_{call_loc_id}++;\n",
         "}\n",
+        "#endif"
     ]
 
 def get_right_hand_side(line: str) -> str:
@@ -62,7 +64,7 @@ def is_member_call(line: str, funcptr: str) -> bool:
     return substring_between.isspace() or substring_between == ""
 
 def get_call_chain(line: str, funcptr: str):
-    regex = r'([\(]*[a-zA-Z_&\d\[\]]*[\)]*\s*(->|\.)\s*[\(]*[a-zA-Z_&\d]*[\)]*)+'
+    regex = r'((\([a-zA-Z_&\d\[\]]*\)|[a-zA-Z_&\d\[\]]*)\s*(->|\.)\s*[\(]*[a-zA-Z_&\d]*[\)]*)+'
     return re.search(regex, line[:line.find(funcptr)+len(funcptr)]).group(0)
 
 def instrument_library_source(lib_src_path, function_pointers):
