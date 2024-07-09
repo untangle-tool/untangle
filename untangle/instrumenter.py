@@ -94,12 +94,12 @@ def instrument_library_source(lib_src_path, function_pointers):
 
         # Look if it is a member call of a struct
         if is_member_call(file_lines[line_no], funcptr=func_ptr):
-            logger.info(f"Found struct call (funcptr {func_ptr}): {file_lines[line_no].strip()}")
+            # logger.info(f"Found struct call (funcptr {func_ptr}): {file_lines[line_no].strip()}")
             # Replace entire call chain
             actual_call = get_call_chain(file_lines[line_no], func_ptr).strip()
-            logger.info(f"Complete call: {actual_call}")
+            # logger.info(f"Complete call: {actual_call}")
             start_column = file_lines[line_no].find(actual_call)
-            logger.info(f"Call is at {call_loc}, column {start_column}")
+            # logger.info(f"Call is at {call_loc}, column {start_column}")
         else:
             if first_parenthesis == -1:
                 actual_call = file_lines[line_no][start_column-1:end_column].strip()

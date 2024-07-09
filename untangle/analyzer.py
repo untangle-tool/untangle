@@ -77,6 +77,7 @@ def extract_function_pointers(codeql_db_path, cache_fname=None, taint=True):
 
     if cache_fname is not None:
         save_object(res, cache_fname)
+        logger.info('Saved function pointers to cache: %s', cache_fname)
 
     return res
 
