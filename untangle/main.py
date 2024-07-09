@@ -260,6 +260,12 @@ def list_all(db_path, built_library_path):
             call_loc = ':'.join(map(str, call_loc))
             print('{:40s} {:40s} {}'.format(fptr, library_func, call_loc))
 
+    print("Summary:")
+    print(f"Found {len(fptrs)} function pointer call sites")
+    print(f"Found {len(by_fptr)} unique function pointers")
+    print(f"Found {len(set(f[3] for f in fptrs))} unique library functions")
+    print(f"Found {len(set(f[2] for f in fptrs))} unique call sites")
+
 
 def main():
     args = parse_arguments()
