@@ -139,7 +139,7 @@ def build(library_path, build_path, out_db_path, build_command, autobuild, taint
     build_codeql_db(library_path, out_db_path, build_command, autobuild)
 
     logger.info('Extracting function pointers from CodeQL database')
-    fptrs = extract_function_pointers(out_db_path, None, taint=taint)
+    fptrs = extract_function_pointers(out_db_path, build_path / '.symex_fptrs', taint=taint)
 
     if len(fptrs) > 0:
         logger.info('Found %d possible paths to reach function pointer calls', len(fptrs))
