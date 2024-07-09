@@ -19,7 +19,8 @@ def build_codeql_db(library_path, out_db_path, build_command, autobuild):
     else:
         args = (
             'codeql', 'database', 'create', out_db_path,
-            '--language=cpp', '--overwrite', '--command', build_command
+            '--language=cpp', '--overwrite', '--command', build_command, 
+            '--ram=4096', '--threads=4'
         )
 
     ensure_command(args, cwd=library_path)
