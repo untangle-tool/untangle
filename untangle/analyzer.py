@@ -38,7 +38,7 @@ def extract_structs(codeql_db_path, cache_fname=None):
     return structs
 
 
-def extract_function_pointers(codeql_db_path, cache_fname=None):
+def extract_function_pointers(codeql_db_path, cache_fname=None, taint=True):
     if cache_fname is not None:
         res = restore_object(cache_fname)
         if res is not None:
@@ -46,7 +46,10 @@ def extract_function_pointers(codeql_db_path, cache_fname=None):
             return res
 
     logger.debug('Extracting global function pointers from CodeQL DB "%s"', codeql_db_path)
-    rows = run_codeql_query(codeql_db_path, FUNC_PTRS_TAINT_QUERY)
+    if taint:
+        rows = run_codeql_query(codeql_db_path, FUNC_PTRS_TAINT_QUERY)
+    else:
+        rows = run_codeql_query(codeql_db_path, FUNC_PTRS_QUERY)
 
     fptr_decls = {}
     fptr_calls = defaultdict(lambda: defaultdict(list))
