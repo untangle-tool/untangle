@@ -19,8 +19,7 @@ def build_codeql_db(library_path, out_db_path, build_command, autobuild):
     else:
         args = (
             'codeql', 'database', 'create', out_db_path,
-            '--language=cpp', '--overwrite', '--command', build_command, 
-            '--ram=4096', '--threads=4'
+            '--language=cpp', '--overwrite', '--command', build_command
         )
 
     ensure_command(args, cwd=library_path)
@@ -42,7 +41,8 @@ def run_codeql_query(db_path, query):
         query_file.flush()
         pack_file.write('name: whatever\nversion: 0.0.0\nextractor: cpp\nlibraryPathDependencies: codeql/cpp-all\n')
         pack_file.flush()
-        cmd = ['codeql', 'query', 'run', '-d', db_path, query_path.as_posix()]
+        cmd = ['codeql', 'query', 'run', '-d', db_path, query_path.as_posix(), 
+            '--ram=4096', '--threads=4']
 
         p = Popen(cmd, stdout=out_file, stderr=PIPE)
         exit_code = p.wait()
