@@ -25,6 +25,7 @@ def parse_arguments():
     sub = parser.add_subparsers(dest='subcommand')
     build = sub.add_parser('build', description='Build a CodeQL database and built an instrument version of the given library for subsequent symbolic execution')
     build.add_argument('--autobuild', action="store_true", help='Let CodeQL automatically build the database')
+    build.add_argument('--taint', action="store_true", help='Use taint tracking to find function pointers')
     build.add_argument('library_path' , metavar='LIBRARY_PATH'  , help='path to library source directory')
     build.add_argument('build_path'   , metavar='OUT_BUILD_PATH', help='path to directory where the library will be copied and built')
     build.add_argument('db_path'      , metavar='OUT_DB_NAME'   , help='name of the CodeQL database to create')
@@ -122,7 +123,7 @@ def setup_logging(level):
     logging.setLogRecordFactory(record_factory)
 
 
-def build(library_path, build_path, out_db_path, build_command, autobuild):
+def build(library_path, build_path, out_db_path, build_command, autobuild, taint):
     '''Build library at the given source directory path using build_command and
     create a CodeQL database for it.
     '''
@@ -138,7 +139,7 @@ def build(library_path, build_path, out_db_path, build_command, autobuild):
     build_codeql_db(library_path, out_db_path, build_command, autobuild)
 
     logger.info('Extracting function pointers from CodeQL database')
-    fptrs = extract_function_pointers(out_db_path)
+    fptrs = extract_function_pointers(out_db_path, None, taint=taint)
 
     if len(fptrs) > 0:
         logger.info('Found %d possible paths to reach function pointer calls', len(fptrs))
@@ -276,7 +277,7 @@ def main():
     if args.subcommand == 'build':
         lib = Path(args.library_path).absolute()
         lib_build = Path(args.build_path).absolute()
-        build(lib, lib_build, db, args.build_command, args.autobuild)
+        build(lib, lib_build, db, args.build_command, args.autobuild, args.taint)
     elif args.subcommand == 'list':
         lib = Path(args.library_path).absolute()
         list_all(db, lib)
