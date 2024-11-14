@@ -42,7 +42,7 @@ def run_codeql_query(db_path, query):
         pack_file.write('name: whatever\nversion: 0.0.0\nextractor: cpp\nlibraryPathDependencies: codeql/cpp-all\n')
         pack_file.flush()
         cmd = ['codeql', 'query', 'run', '-d', db_path, query_path.as_posix(), 
-            '--ram=4096', '--threads=4', '-J=Xmx4G']
+            '--ram=4096', '--threads=4', '-J-Xmx4G']
 
         p = Popen(cmd, stdout=out_file, stderr=PIPE)
         exit_code = p.wait()

@@ -9,3 +9,5 @@ output_dir/
 libraries_src/
 libraries_bin/
 databases/
+plots.py
+*.pdf

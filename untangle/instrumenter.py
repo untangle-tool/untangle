@@ -2,6 +2,7 @@ import os
 import logging
 import re
 from collections import defaultdict
+from .utils import search_all
 
 logger = logging.getLogger('instrumenter')
 
@@ -38,12 +39,15 @@ def generate_fn_definition(func_ptr: str, call_loc_id: int, actual_call: str):
     ]
 
 def get_right_hand_side(line: str) -> str:
-    two_sides = line.split("=")
-    if len(two_sides) > 1:
-        right_hand_side = two_sides[1]
-    else:
-        right_hand_side = two_sides[0]
 
+    if line.count("=") == 1 and not "!=" in line:
+        two_sides = line.split("=")
+        if len(two_sides) > 1:
+            right_hand_side = two_sides[1]
+        else:
+            right_hand_side = two_sides[0]
+    else:
+        right_hand_side = line
     return right_hand_side
 
 def is_member_call(line: str, funcptr: str) -> bool:
@@ -65,7 +69,14 @@ def is_member_call(line: str, funcptr: str) -> bool:
 
 def get_call_chain(line: str, funcptr: str):
     regex = r'((\([a-zA-Z_&\d\[\]]*\)|[a-zA-Z_&\d\[\]]*)\s*(->|\.)\s*[\(]*[a-zA-Z_&\d]*[\)]*)+'
-    return re.search(regex, line[:line.find(funcptr)+len(funcptr)]).group(0)
+    # return re.search(regex, line[:line.find(funcptr)+len(funcptr)]).group(0)
+    matches = search_all(regex, line[:line.find(funcptr)+len(funcptr)])
+    match = ""
+    for m in matches:
+        if funcptr in m:
+            match = m
+            break
+    return match
 
 def instrument_library_source(lib_src_path, function_pointers):
     number_lines_added = defaultdict(int)
@@ -94,12 +105,17 @@ def instrument_library_source(lib_src_path, function_pointers):
 
         # Look if it is a member call of a struct
         if is_member_call(file_lines[line_no], funcptr=func_ptr):
-            # logger.info(f"Found struct call (funcptr {func_ptr}): {file_lines[line_no].strip()}")
+            logger.info(f"Found struct call (funcptr {func_ptr}): {file_lines[line_no].strip()}")
             # Replace entire call chain
-            actual_call = get_call_chain(file_lines[line_no], func_ptr).strip()
-            # logger.info(f"Complete call: {actual_call}")
+            last_command = file_lines[line_no].rfind(";", 0, file_lines[line_no].find(func_ptr))
+            
+            if last_command == -1:
+                actual_call = get_call_chain(file_lines[line_no], func_ptr).strip()
+            else:
+                actual_call = get_call_chain(file_lines[line_no][last_command:], func_ptr).strip()
+            logger.info(f"Complete call: {actual_call}")
             start_column = file_lines[line_no].find(actual_call)
-            # logger.info(f"Call is at {call_loc}, column {start_column}")
+            logger.info(f"Call is at {call_loc}, column {start_column}")
         else:
             if first_parenthesis == -1:
                 actual_call = file_lines[line_no][start_column-1:end_column].strip()

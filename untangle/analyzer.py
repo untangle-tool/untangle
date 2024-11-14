@@ -255,6 +255,3 @@ select
     root.getLocation().getStartLine() as location,
   root.getSimplifiedSignature() as signtature
 '''
-
-if __name__ == '__main__':
-    main(sys.argv)

@@ -106,3 +106,15 @@ def exported_functions(binary: Union[str,Path]) -> Dict[str,int]:
         sys.exit(1)
 
     return res
+
+def search_all(regex, string):
+    matches = []
+    m = re.search(regex, string).group(0)
+    matches.append(m)
+    while m is not None:
+        string = string[string.find(m) + len(m):]
+        m = re.search(regex, string)
+        if m is not None:
+            m = m.group(0)
+            matches.append(m)
+    return matches
